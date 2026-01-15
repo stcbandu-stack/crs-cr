@@ -200,11 +200,28 @@ createApp({
             if(!error) { loadInitialData(); customerModal.value.isOpen = false; showToast('เรียบร้อย'); }
             else { showToast(error.message, 'error'); }
         };
+		
+		const rolePermissions = {
+            'admin':  ['manage_stock', 'change_status', 'manage_users', 'manage_prices', 'delete_data'],
+            'user':   ['manage_stock', 'change_status'], // user ทำสต็อกได้, เปลี่ยนสถานะได้
+            'manager':['manage_stock', 'change_status', 'approve_order'], // สมมติในอนาคตมี manager
+            'viewer': [] // สมมติมีคนดูอย่างเดียว
+        };
+		
+		const can = (action) => {
+            const currentRole = userProfile.value.role || 'guest';
+            const allowedActions = rolePermissions[currentRole] || [];
+            
+            // พิเศษ: ถ้าเป็น admin ให้ทำได้ทุกอย่าง (God Mode) หรือจะเช็คตามลิสต์ก็ได้
+            if (currentRole === 'admin') return true; 
+
+            return allowedActions.includes(action);
+        };
 
         return {
             session, loginData, userProfile, currentPage, provider,
             customers, services, jobHistory, orderForm, newService,
-            isAdmin, canManageStock, grandTotal, showPreview, generatedJobId, isHistoryView, statusOptions,
+            isAdmin, canManageStock, grandTotal, showPreview, generatedJobId, isHistoryView, statusOptions, can,
             toast, confirmModal, customerModal, statusModal,
             handleLogin, handleLogout, editDisplayName,
             goToOrder, goToCustomers, goToServices,
