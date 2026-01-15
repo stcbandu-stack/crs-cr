@@ -97,9 +97,35 @@ createApp({
         const calcRow = (i, t) => { let wm = (i.unit === 'cm') ? i.w / 100 : i.w; let hm = (i.unit === 'cm') ? i.h / 100 : i.h; let area = wm * hm; if (t === 'size') i.price = (area > 0 && i.base_price > 0) ? Math.ceil(area * i.base_price) : Math.ceil(i.base_price); i.total = i.price * i.qty; };
         const fillCustomerInfo = () => { if(orderForm.value.selectedCustomer) { const c = orderForm.value.selectedCustomer; orderForm.value.customerName = c.name; orderForm.value.branch = c.address + (c.tax_id ? ` (Tax: ${c.tax_id})` : ''); } };
         const generateJobIdFunc = async () => { const d = new Date(); const p = `${String(d.getDate()).padStart(2,'0')}${String(d.getMonth()+1).padStart(2,'0')}${d.getFullYear()+543}`; const { data } = await _supabase.from('job_orders').select('job_id').ilike('job_id', `${p}%`).order('job_id', { ascending: false }).limit(1); return `${p}${data && data.length > 0 ? String(parseInt(data[0].job_id.slice(-2)) + 1).padStart(2, '0') : '00'}`; };
-        const preparePreview = async () => { if(!orderForm.value.items.length) return showToast('เพิ่มรายการก่อน', 'error'); if(!orderForm.value.customerName) return showToast('ระบุลูกค้า', 'error'); if(!generatedJobId.value && !isHistoryView.value) generatedJobId.value = await generateJobIdFunc(); showPreview.value = true; };
+        const preparePreview = async () => { 
+            if(!orderForm.value.items.length) return showToast('เพิ่มรายการก่อน', 'error'); 
+            if(!orderForm.value.customerName) return showToast('ระบุลูกค้า', 'error'); 
+            
+            if(!generatedJobId.value && !isHistoryView.value) generatedJobId.value = await generateJobIdFunc(); 
+            
+            // [เพิ่มตรงนี้] ถ้าเป็นงานใหม่ ให้ใช้ชื่อคน Login ปัจจุบัน
+            if (!isHistoryView.value) {
+                orderForm.value.creatorName = userProfile.value.display_name || userProfile.value.email;
+            }
+
+            showPreview.value = true; 
+        };
         const submitOrder = async () => { if (!orderForm.value.eventDate || !orderForm.value.customerName) return showToast('กรอกข้อมูลให้ครบ', 'error'); confirmAction("ยืนยันสั่งงาน?", async () => { const payload = { job_id: generatedJobId.value, customer_name: orderForm.value.customerName, branch: orderForm.value.branch, event_name: orderForm.value.eventName, event_date: orderForm.value.eventDate, items: orderForm.value.items, total_price: grandTotal.value, created_by: userProfile.value.display_name || userProfile.value.email, status: 'waiting_approval' }; const { error } = await _supabase.from('job_orders').insert(payload); if(error) showToast('Error: ' + error.message, 'error'); else { showToast('บันทึกแล้ว!'); resetOrder(); currentPage.value = 'dashboard'; } }); };
-        const resetOrder = () => { orderForm.value = { customerType: 'general', selectedCustomer: null, customerName: '', branch: '', eventName: '', eventDate: '', items: [] }; showPreview.value = false; generatedJobId.value = ''; isHistoryView.value = false; };
+        const resetOrder = () => { 
+            orderForm.value = { 
+                customerType: 'general', 
+                selectedCustomer: null, 
+                customerName: '', 
+                branch: '', 
+                eventName: '', 
+                eventDate: '', 
+                items: [],
+                creatorName: '' // <--- [เพิ่มตรงนี้] เคลียร์ชื่อ
+            }; 
+            showPreview.value = false; 
+            generatedJobId.value = ''; 
+            isHistoryView.value = false; 
+        };
 
         // ================== ZONE 7: HISTORY ==================
         const fetchHistory = async () => { currentPage.value = 'history'; const { data } = await _supabase.from('job_orders').select('*').order('created_at', { ascending: false }); jobHistory.value = data; };
@@ -108,7 +134,20 @@ createApp({
         const paginatedHistory = computed(() => filteredHistory.value.slice((currentPageNum.value - 1) * itemsPerPage, currentPageNum.value * itemsPerPage));
         watch([searchQuery, statusFilter], () => { currentPageNum.value = 1; });
         const changePage = (p) => { if (p >= 1 && p <= totalPages.value) currentPageNum.value = p; };
-        const viewJob = (j) => { orderForm.value = { customerName: j.customer_name, branch: j.branch, eventName: j.event_name, eventDate: j.event_date, items: j.items }; generatedJobId.value = j.job_id; isHistoryView.value = true; currentPage.value = 'order'; showPreview.value = true; };
+        const viewJob = (j) => { 
+            orderForm.value = { 
+                customerName: j.customer_name, 
+                branch: j.branch, 
+                eventName: j.event_name, 
+                eventDate: j.event_date, 
+                items: j.items,
+                creatorName: j.created_by // <--- [เพิ่มตรงนี้] ดึงชื่อคนสร้างจาก DB
+            }; 
+            generatedJobId.value = j.job_id; 
+            isHistoryView.value = true; 
+            currentPage.value = 'order'; 
+            showPreview.value = true; 
+        };
         const printJob = (j) => { viewJob(j); setTimeout(() => window.print(), 500); };
         
         // [FIX Bug 3] Status Modal Logic
