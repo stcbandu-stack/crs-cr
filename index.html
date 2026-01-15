@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบสั่งงานร้านป้าย</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+        .modal-enter-active, .modal-leave-active { transition: opacity 0.3s ease; }
+        .modal-enter-from, .modal-leave-to { opacity: 0; }
+        .toast-enter-active { animation: bounce-in 0.5s; }
+        .toast-leave-active { transition: all 0.3s ease; opacity: 0; transform: translateY(-100%); }
+        @keyframes bounce-in {
+            0% { transform: translateY(-100%) translateX(-50%); opacity: 0; }
+            50% { transform: translateY(20%) translateX(-50%); opacity: 1; }
+            100% { transform: translateY(0) translateX(-50%); }
+        }
+        .A4 { background: white; width: 210mm; max-width: 100%; padding: 10mm; margin: 20px auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        @media print {
+            @page { size: A4; margin: 0; }
+            body { margin: 0; padding: 0; background-color: white; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .A4 { width: 210mm; min-height: 297mm; margin: 0; padding: 10mm !important; box-shadow: none; border: none; page-break-after: auto; }
+            ::-webkit-scrollbar { display: none; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+<div id="app" class="relative min-h-screen">
+
+    <div v-if="!session" class="min-h-screen flex items-center justify-center bg-blue-900">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-96">
+            <h2 class="text-2xl font-bold mb-4 text-center text-blue-800">เข้าสู่ระบบ</h2>
+            <form @submit.prevent="handleLogin">
+                <input v-model="loginData.email" type="email" placeholder="อีเมล" class="w-full p-2 mb-3 border rounded" required>
+                <input v-model="loginData.password" type="password" placeholder="รหัสผ่าน" class="w-full p-2 mb-3 border rounded" required>
+                <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <div v-else>
+        <nav class="bg-white shadow p-4 mb-4 flex justify-between items-center no-print">
+            <div class="font-bold text-xl text-blue-800">{{ provider.org_name || 'Printing System' }}</div>
+            <div class="flex gap-4 items-center">
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-gray-700">{{ userProfile.display_name }}</span>
+                    <span class="text-sm text-gray-500">({{ userProfile.role }})</span>
+                    <button @click="editDisplayName" class="text-gray-400 hover:text-blue-600" title="เปลี่ยนชื่อ">✏️</button>
+                </div>
+                <div class="h-6 w-px bg-gray-300 mx-2"></div>
+                <button @click="handleLogout" class="text-red-500 hover:text-red-700">ออกจากระบบ</button>
+            </div>
+        </nav>
+
+        <div v-if="currentPage === 'dashboard'" class="container mx-auto p-4">
+            <h2 class="text-2xl font-bold mb-6">เมนูหลัก</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div @click="goToOrder" class="bg-white p-6 rounded shadow hover:shadow-lg cursor-pointer border-l-4 border-blue-500">
+                    <h3 class="text-xl font-bold">📝 สั่งงาน</h3>
+                    <p class="text-gray-500">สร้างใบสั่งงานใหม่</p>
+                </div>
+                <div @click="fetchHistory" class="bg-white p-6 rounded shadow hover:shadow-lg cursor-pointer border-l-4 border-green-500">
+                    <h3 class="text-xl font-bold">📂 ประวัติใบสั่งงาน</h3>
+                    <p class="text-gray-500">ดูและแก้ไขงานเก่า</p>
+                </div>
+
+                <div v-if="canManageStock" @click="currentPage = 'inventory'; fetchMaterials()" class="bg-white p-6 rounded shadow hover:shadow-lg cursor-pointer border-l-4 border-teal-500">
+                    <h3 class="text-xl font-bold">📦 คลังวัสดุ</h3>
+                    <p class="text-gray-500">จัดการสต็อก / เบิกจ่าย</p>
+                </div>
+
+                <div v-if="isAdmin" @click="goToCustomers" class="bg-white p-6 rounded shadow hover:shadow-lg cursor-pointer border-l-4 border-yellow-500">
+                    <h3 class="text-xl font-bold">👥 ฐานข้อมูลลูกค้า</h3>
+                    <p class="text-gray-500">จัดการลูกค้าองค์กร</p>
+                </div>
+                <div v-if="isAdmin" @click="goToServices" class="bg-white p-6 rounded shadow hover:shadow-lg cursor-pointer border-l-4 border-purple-500">
+                    <h3 class="text-xl font-bold">💰 ฐานข้อมูลราคา</h3>
+                    <p class="text-gray-500">จัดการราคาค่าบริการ</p>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentPage === 'order'" class="container mx-auto p-4">
+            <button @click="currentPage = 'dashboard'" class="mb-4 text-gray-500 hover:text-gray-800 no-print">&larr; กลับหน้าหลัก</button>
+            
+            <div v-if="!showPreview" class="bg-white p-6 rounded shadow">
+                <h2 class="text-xl font-bold mb-4 border-b pb-2">รายละเอียดใบสั่งงาน</h2>
+                <div class="mb-4 flex gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="radio" v-model="orderForm.customerType" value="general"> ลูกค้าทั่วไป</label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="radio" v-model="orderForm.customerType" value="corporate"> ลูกค้าองค์กร</label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div v-if="orderForm.customerType === 'corporate'">
+                        <label class="block text-sm font-bold">เลือกองค์กร</label>
+                        <select v-model="orderForm.selectedCustomer" @change="fillCustomerInfo" class="w-full border p-2 rounded">
+                            <option :value="null">-- เลือก --</option>
+                            <option v-for="c in customers" :value="c">{{ c.name }}</option>
+                        </select>
+                    </div>
+                    <div><label class="block text-sm font-bold">ชื่อลูกค้า</label><input v-model="orderForm.customerName" type="text" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold">สาขา/หน่วยงาน</label><input v-model="orderForm.branch" type="text" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold">ชื่องาน/กิจกรรม</label><input v-model="orderForm.eventName" type="text" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold">วันที่จัดกิจกรรม</label><input v-model="orderForm.eventDate" type="date" class="w-full border p-2 rounded"></div>
+                </div>
+
+                <h3 class="font-bold mt-6 mb-2">รายการสั่งทำ ({{ orderForm.items.length }}/30)</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse border">
+                       <thead>
+                            <tr class="bg-gray-200">
+                                <th class="border p-2">บริการ</th><th class="border p-2">กว้าง</th><th class="border p-2">สูง</th><th class="border p-2">หน่วย</th>
+                                <th class="border p-2">จำนวน</th><th class="border p-2">ราคา/หน่วย</th><th class="border p-2">รวม</th><th class="border p-2">หมายเหตุ</th><th class="border p-2">ลบ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(item, idx) in orderForm.items" :key="idx">
+                                <td class="border p-1">
+                                    <select v-model="item.service" @change="updatePrice(item)" class="w-full p-1 border">
+                                        <option v-for="s in services" :value="s">{{ s.service_name }}</option>
+                                        <option :value="{service_name:'อื่นๆ', unit_price:0}">อื่นๆ</option>
+                                    </select>
+                                    <input v-if="item.service.service_name === 'อื่นๆ'" v-model="item.customName" placeholder="ระบุชื่อ" class="w-full mt-1 p-1 border text-xs">
+                                </td>
+                                <td class="border p-1"><input type="number" v-model="item.w" @input="calcRow(item, 'size')" class="w-16 p-1 border"></td>
+                                <td class="border p-1"><input type="number" v-model="item.h" @input="calcRow(item, 'size')" class="w-16 p-1 border"></td>
+                                <td class="border p-1"><select v-model="item.unit" @change="calcRow(item, 'size')" class="p-1 border"><option value="cm">ซม.</option><option value="m">ม.</option></select></td>
+                                <td class="border p-1"><input type="number" v-model="item.qty" @input="calcRow(item, 'qty')" class="w-16 p-1 border"></td>
+                                <td class="border p-1"><input type="number" v-model="item.price" :readonly="!isAdmin" @input="calcRow(item, 'manual')" class="w-24 p-1 border bg-gray-50 font-bold text-blue-600 text-right"></td>
+                                <td class="border p-1 text-right">{{ formatCurrency(item.total) }}</td>
+                                <td class="border p-1"><input type="text" v-model="item.note" class="w-full p-1 border"></td>
+                                <td class="border p-1 text-center"><button @click="removeItem(idx)" class="text-red-500 font-bold hover:bg-red-100 px-2 rounded">x</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button v-if="orderForm.items.length < 30" @click="addItem" class="mt-2 bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600">+ เพิ่มรายการ</button>
+                <div class="mt-8 flex justify-end gap-4 border-t pt-4">
+                    <button @click="resetOrder" class="bg-gray-300 text-gray-800 px-6 py-2 rounded hover:bg-gray-400">ยกเลิก</button>
+                    <button @click="preparePreview" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 shadow">ตรวจสอบ / สรุปยอด</button>
+                </div>
+            </div>
+
+            <div v-if="showPreview" class="A4 mx-auto relative">
+                <div class="text-center mb-6">
+                    <img v-if="provider.logo_url" :src="provider.logo_url" class="h-16 mx-auto mb-2">
+                    <h1 class="text-2xl font-bold">{{ provider.org_name }}</h1>
+                    <p class="text-sm">{{ provider.address }} | โทร: {{ provider.phone }} | เลขภาษี: {{ provider.tax_id }}</p>
+                    <div class="mt-4 text-xl font-bold border-2 border-black inline-block px-4 py-1">ใบสั่งงาน / ใบส่งของ</div>
+                </div>
+                <div class="flex justify-between mb-4 text-sm">
+                    <div class="w-2/3">
+                        <p><strong>ลูกค้า:</strong> {{ orderForm.customerName }}</p>
+                        <p><strong>สาขา/ที่อยู่:</strong> {{ orderForm.branch }}</p>
+                        <p><strong>ชื่องาน:</strong> {{ orderForm.eventName }}</p>
+                        <p><strong>วันที่ใช้งาน:</strong> {{ formatDate(orderForm.eventDate) }}</p>
+                    </div>
+                    <div class="w-1/3 text-right">
+                        <p><strong>เลขที่:</strong> {{ generatedJobId }}</p>
+                        <p><strong>วันที่:</strong> {{ formatDate(new Date()) }}</p>
+                        <p><strong>ผู้สั่งงาน:</strong> {{ userProfile.display_name }}</p>
+                    </div>
+                </div>
+                <table class="w-full border-collapse border border-black text-sm mb-6">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="border border-black p-2 w-10">ลำดับ</th><th class="border border-black p-2">รายการ</th><th class="border border-black p-2 w-24">ขนาด (ม.)</th>
+                            <th class="border border-black p-2 w-16">จำนวน</th><th class="border border-black p-2 w-24">ราคา/หน่วย</th><th class="border border-black p-2 w-24">จำนวนเงิน</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(item, idx) in orderForm.items" :key="idx">
+                            <td class="border border-black p-2 text-center">{{ idx + 1 }}</td>
+                            <td class="border border-black p-2">
+                                {{ item.service.service_name === 'อื่นๆ' ? item.customName : item.service.service_name }}
+                                <div class="text-xs text-gray-500">{{ item.note }}</div>
+                            </td>
+                            <td class="border border-black p-2 text-center">{{ (item.unit === 'cm' ? item.w/100 : item.w) }} x {{ (item.unit === 'cm' ? item.h/100 : item.h) }}</td>
+                            <td class="border border-black p-2 text-center">{{ item.qty }}</td>
+                            <td class="border border-black p-2 text-right">{{ formatCurrency(item.price) }}</td>
+                            <td class="border border-black p-2 text-right">{{ formatCurrency(item.total) }}</td>
+                        </tr>
+                        <tr v-for="n in (10 - orderForm.items.length)" :key="'empty'+n" v-if="orderForm.items.length < 10">
+                            <td class="border border-black p-2">&nbsp;</td><td class="border border-black p-2"></td><td class="border border-black p-2"></td>
+                            <td class="border border-black p-2"></td><td class="border border-black p-2"></td><td class="border border-black p-2"></td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="font-bold bg-gray-100">
+                            <td colspan="5" class="border border-black p-2 text-right">รวมเป็นเงินทั้งสิ้น</td>
+                            <td class="border border-black p-2 text-right">{{ formatCurrency(grandTotal) }} บาท</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div class="flex justify-between mt-12 text-center px-8">
+                    <div>
+                        <p class="mb-8 border-b border-black w-48 mx-auto"></p> <p class="font-bold text-lg">{{ userProfile.display_name }}</p>
+                        <p class="text-sm">(ผู้สั่งงาน)</p>
+                    </div>
+                    <div>
+                        <p class="mb-8 border-b border-black w-48 mx-auto"></p> <p class="font-bold text-lg">ผู้รับสินค้า / ลูกค้า</p>
+                        <p class="text-sm">วันที่ ...../...../..........</p>
+                    </div>
+                </div>
+                <div class="fixed bottom-0 left-0 w-full bg-white p-4 shadow-top flex justify-center gap-4 no-print border-t z-10">
+                    <button @click="showPreview = false" class="bg-gray-500 text-white px-6 py-2 rounded shadow">แก้ไข</button>
+                    <button onclick="window.print()" class="bg-purple-600 text-white px-6 py-2 rounded shadow">🖨️ พิมพ์ / PDF</button>
+                    <button @click="submitOrder" v-if="!isHistoryView" class="bg-green-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-green-700">ยืนยันส่งคำสั่งงาน</button>
+                    <button @click="currentPage='dashboard'" v-if="isHistoryView" class="bg-gray-800 text-white px-6 py-2 rounded shadow">ปิด</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentPage === 'history'" class="container mx-auto p-4">
+            
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div>
+                    <button @click="currentPage = 'dashboard'" class="mb-2 text-gray-500 hover:text-gray-800 flex items-center gap-1">
+                        &larr; กลับหน้าหลัก
+                    </button>
+                    <h2 class="text-2xl font-bold">📂 ประวัติใบสั่งงาน</h2>
+                </div>
+
+                <div class="flex flex-col md:flex-row gap-2 w-full md:w-auto bg-white p-2 rounded shadow-sm border">
+                    <div class="relative">
+                        <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
+                        <input v-model="searchQuery" type="text" placeholder="ค้นหาเลขงาน / ชื่อลูกค้า..." 
+                               class="pl-9 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300 w-full md:w-64">
+                    </div>
+
+                    <select v-model="statusFilter" class="py-2 px-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300 cursor-pointer bg-white">
+                        <option value="">Showing: ทุกสถานะ</option>
+                        <option v-for="(info, key) in statusOptions" :key="key" :value="key">
+                            {{ info.label }}
+                        </option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="bg-white rounded shadow overflow-hidden"> 
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-blue-100 text-left">
+                                <th class="p-3">ID งาน</th> <th class="p-3">วันที่</th> <th class="p-3">ลูกค้า</th> <th class="p-3">ชื่องาน</th>
+                                <th class="p-3">ยอดรวม</th> <th class="p-3">สถานะ</th> <th class="p-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="job in paginatedHistory" :key="job.job_id" class="border-b hover:bg-gray-50">
+                                <td class="p-3 font-mono font-bold text-blue-600">{{ job.job_id }}</td>
+                                <td class="p-3">{{ formatDate(job.created_at) }}</td>
+                                <td class="p-3">{{ job.customer_name }}</td>
+                                <td class="p-3">{{ job.event_name }}</td>
+                                <td class="p-3">{{ formatCurrency(job.total_price) }}</td>
+                                <td class="p-3">
+                                    <span v-if="statusOptions[job.status]" :class="statusOptions[job.status].class" class="px-2 py-1 rounded-full text-xs font-bold border border-opacity-20">{{ statusOptions[job.status].label }}</span>
+                                    <span v-else class="text-gray-400 text-xs">{{ job.status }}</span>
+                                </td>
+                                <td class="p-3">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <button @click="viewJob(job)" class="bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1 rounded text-xs transition flex items-center gap-1">📄 ดู</button>
+                                        <button @click="printJob(job)" class="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1 rounded text-xs transition flex items-center gap-1">🖨️ PDF</button>
+                                        <button v-if="isAdmin" @click="openStatusModal(job)" class="bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200 px-3 py-1 rounded text-xs transition flex items-center gap-1">✏️ สถานะ</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="paginatedHistory.length === 0">
+                                <td colspan="7" class="p-8 text-center text-gray-500 bg-gray-50">
+                                    ❌ ไม่พบข้อมูลที่ค้นหา (จากทั้งหมด {{ jobHistory.length }} รายการ)
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div v-if="totalPages > 1" class="bg-gray-50 border-t p-3 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div class="text-xs text-gray-500">
+                        แสดงหน้า {{ currentPageNum }} จาก {{ totalPages }} (ทั้งหมด {{ filteredHistory.length }} รายการ)
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <button @click="changePage(currentPageNum - 1)" :disabled="currentPageNum === 1"
+                                class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                            &larr; ก่อนหน้า
+                        </button>
+                        
+                        <div class="flex items-center gap-1">
+                            <span>หน้า</span>
+                            <input type="number" v-model.number="currentPageNum" @change="changePage(currentPageNum)"
+                                   min="1" :max="totalPages"
+                                   class="w-12 text-center border rounded p-1 text-sm focus:ring-2 focus:ring-blue-300 outline-none">
+                            <span>/ {{ totalPages }}</span>
+                        </div>
+
+                        <button @click="changePage(currentPageNum + 1)" :disabled="currentPageNum === totalPages"
+                                class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                            ถัดไป &rarr;
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentPage === 'customers'" class="container mx-auto p-4">
+             <button @click="currentPage = 'dashboard'" class="mb-4 text-gray-500 hover:text-gray-800">&larr; กลับ</button>
+             <div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold">จัดการลูกค้าองค์กร</h2><button @click="openCustomerModal()" class="bg-green-500 text-white px-4 py-2 rounded shadow">+ เพิ่มลูกค้า</button></div>
+             <div class="bg-white shadow rounded p-4 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead><tr class="bg-gray-100 text-left"><th class="p-3">ชื่อองค์กร</th><th class="p-3">เลขผู้เสียภาษี</th><th class="p-3">ที่อยู่</th><th class="p-3">เบอร์โทร</th><th class="p-3 text-center">จัดการ</th></tr></thead>
+                    <tbody>
+                        <tr v-for="c in customers" :key="c.id" class="border-b hover:bg-gray-50">
+                            <td class="p-3 font-bold text-blue-900">{{ c.name }}</td><td class="p-3 font-mono text-gray-600">{{ c.tax_id || '-' }}</td>
+                            <td class="p-3 text-gray-600 max-w-xs truncate" :title="c.address">{{ c.address || '-' }}</td><td class="p-3">{{ c.phone }}</td>
+                            <td class="p-3 text-center flex justify-center gap-2">
+                                <button @click="openCustomerModal(c)" class="text-yellow-600 hover:text-yellow-800 bg-yellow-50 px-3 py-1 rounded border border-yellow-200">แก้ไข</button>
+                                <button @click="deleteCustomer(c.id)" class="text-red-500 hover:text-red-700 bg-red-50 px-3 py-1 rounded border border-red-200">ลบ</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div v-if="currentPage === 'services'" class="container mx-auto p-4">
+             <button @click="currentPage = 'dashboard'" class="mb-4 text-gray-500 hover:text-gray-800">&larr; กลับหน้าหลัก</button>
+             <h2 class="text-2xl font-bold mb-6">จัดการราคาบริการ</h2>
+             <div class="bg-white p-6 rounded shadow mb-6 border-l-4 border-green-500">
+                <h3 class="font-bold text-lg mb-4">เพิ่มรายการบริการใหม่</h3>
+                <div class="flex flex-col md:flex-row gap-4 items-end">
+                    <div class="w-full md:w-1/3"><label class="block text-sm text-gray-600 mb-1">ชื่อบริการ</label><input v-model="newService.name" type="text" class="w-full border p-2 rounded"></div>
+                    <div class="w-full md:w-1/4"><label class="block text-sm text-gray-600 mb-1">ราคา (บาท)</label><input v-model="newService.price" type="number" class="w-full border p-2 rounded"></div>
+                    <div><button @click="addService" class="bg-green-600 text-white px-6 py-2 rounded">+ บันทึกรายการ</button></div>
+                </div>
+            </div>
+            <div class="bg-white shadow rounded overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100 text-gray-700"><tr><th class="p-3 text-left">บริการ</th><th class="border p-2">ราคา/หน่วย</th><th class="p-3 text-center">จัดการ</th></tr></thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <tr v-for="s in services" :key="s.id" class="hover:bg-gray-50">
+                            <td class="p-3 font-medium">{{ s.service_name }}</td>
+                            <td class="p-3"><input type="number" :value="s.unit_price" @change="updateServicePrice(s, $event)" class="border p-1 w-24 rounded bg-gray-50 text-right"> บาท</td>
+                            <td class="p-3 text-center"><button @click="deleteService(s.id)" class="text-red-500 hover:text-red-700 bg-red-50 px-3 py-1 rounded">ลบ</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div v-if="currentPage === 'inventory'" class="container mx-auto p-4">
+            <button @click="currentPage = 'dashboard'" class="mb-4 text-gray-500 hover:text-gray-800">&larr; กลับหน้าหลัก</button>
+            
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h2 class="text-2xl font-bold flex items-center gap-2">📦 คลังวัสดุ</h2>
+                <div class="flex gap-2">
+                        <button @click="currentPage = 'inventory_logs'; fetchLogs()" class="bg-blue-100 text-blue-700 px-4 py-2 rounded hover:bg-blue-200">📜 ดูประวัติการเบิกใช้วัสดุ</button>
+                        <button @click="openMatModal('add')" class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700">+ เพิ่มวัสดุใหม่</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div v-for="mat in sortedMaterials" :key="mat.id" 
+                        class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden flex flex-col relative"
+                        :class="{'ring-2 ring-red-400': mat.remaining_qty <= mat.min_alert}">
+                        
+                        <div v-if="mat.remaining_qty <= mat.min_alert" class="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse shadow">ใกล้หมด!</div>
+
+                        <div class="p-4 flex-grow">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">{{ mat.category }}</span>
+                                <span class="text-xs text-gray-400">{{ mat.type === 'roll' ? 'ม้วน' : (mat.type === 'piece' ? 'ชิ้น' : 'แพ็ค') }}</span>
+                            </div>
+                            <h3 class="font-bold text-lg text-gray-800 mb-1">{{ mat.name }}</h3>
+                            
+                            <div class="text-xs text-gray-500 mb-2 space-y-1">
+                                <p v-if="mat.brand">🏷️ {{ mat.brand }}</p>
+                                <p v-if="mat.supplier">🏪 {{ mat.supplier }}</p>
+                                <p v-if="mat.type === 'roll'">📏 หน้ากว้าง: {{ mat.width }} ม.</p>
+                            </div>
+                            
+                            <div class="flex items-end justify-between mt-2 border-t pt-2">
+                                <div>
+                                    <p class="text-xs text-gray-500">คงเหลือ</p>
+                                    <p class="text-2xl font-bold" :class="mat.remaining_qty <= mat.min_alert ? 'text-red-600' : 'text-blue-600'">
+                                        {{ mat.remaining_qty.toLocaleString() }} <span class="text-sm font-normal text-gray-500">{{ mat.unit || 'หน่วย' }}</span>
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs text-gray-500">ต้นทุน/หน่วย</p>
+                                    <p class="font-mono">{{ mat.cost_per_unit }} บ.</p>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-3 border-t grid grid-cols-2 gap-2 text-xs text-gray-500 text-center bg-gray-50 rounded p-2">
+                                <div>
+                                    <div class="font-bold text-green-600">IN: {{ mat.total_in.toLocaleString() }}</div>
+                                    <div>รับเข้าสะสม</div>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-red-500">OUT: {{ mat.total_out.toLocaleString() }}</div>
+                                    <div>เบิกใช้สะสม</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 p-3 border-t flex gap-2">
+                            <button @click="openStockAction('IN', mat)" class="flex-1 bg-green-100 text-green-700 py-1 rounded hover:bg-green-200 text-sm font-bold">+ รับเข้า</button>
+                            <button @click="openStockAction('OUT', mat)" class="flex-1 bg-red-100 text-red-700 py-1 rounded hover:bg-red-200 text-sm font-bold">- เบิกใช้</button>
+                            <button @click="openMatModal('edit', mat)" class="p-1 text-gray-400 hover:text-blue-500">⚙️</button>
+                            <button @click="deleteMaterial(mat.id)" class="p-1 text-gray-400 hover:text-red-500">🗑️</button>
+                        </div>
+                    </div>
+                </div>
+        </div> 
+
+        <div v-if="currentPage === 'inventory_logs'" class="container mx-auto p-4">
+            <button @click="currentPage = 'inventory'" class="mb-4 text-gray-500 hover:text-gray-800">&larr; กลับคลังวัสดุ</button>
+            <h2 class="text-2xl font-bold mb-6">📜 ประวัติการเบิก-รับวัสดุ</h2>
+
+            <div class="flex flex-col md:flex-row gap-4 mb-4 items-center">
+                <div class="flex flex-col md:flex-row gap-2 flex-1 w-full bg-white p-4 rounded shadow">
+                    <input v-model="invSearch" placeholder="ค้นหาชื่อวัสดุ / หมายเหตุ..." class="border p-2 rounded flex-1">
+                    
+                    <select v-model="invCategoryFilter" class="border p-2 rounded w-full md:w-auto">
+                        <option value="">ทุกหมวดหมู่</option>
+                        <option v-for="c in materialCategories" :value="c">{{ c }}</option>
+                    </select>
+
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-500 whitespace-nowrap">เดือน:</span>
+                        <input type="month" v-model="invMonthFilter" class="border p-2 rounded w-full md:w-auto">
+                    </div>
+                </div>
+                
+                <button @click="exportLogsCSV" class="bg-green-600 text-white px-6 py-4 rounded shadow font-bold hover:bg-green-700 whitespace-nowrap">
+                    📥 Export CSV
+                </button>
+            </div>
+
+            <div class="bg-white shadow rounded overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-3 text-left">วันที่</th>
+                            <th class="p-3 text-left">รายการ</th>
+                            <th class="p-3 text-center">ประเภท</th>
+                            <th class="p-3 text-right">จำนวน</th>
+                            <th class="p-3 text-right">มูลค่า (บาท)</th>
+                            <th class="p-3 text-left">รายละเอียด</th>
+                            <th class="p-3 text-left">ผู้ทำรายการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    <tr v-for="log in paginatedLogs" :key="log.id" class="border-b hover:bg-gray-50">
+        <td class="p-3">{{ formatDate(log.action_date) }}</td>
+        <td class="p-3 font-bold">
+            {{ (materials || []).find(m => m.id === log.material_id)?.name || 'Unknown/Deleted' }}
+        </td>
+        <td class="p-3 text-center">
+            <span v-if="log.action_type === 'IN'" class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold">รับเข้า</span>
+            <span v-else-if="log.action_type === 'OUT'" class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">เบิกออก</span>
+            <span v-else-if="log.action_type === 'CREATE'" class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold">เพิ่มใหม่</span>
+            <span v-else-if="log.action_type === 'DELETE'" class="bg-gray-200 text-gray-800 px-2 py-1 rounded text-xs font-bold">ลบรายการ</span>
+            <span v-else class="text-gray-500 text-xs">{{ log.action_type }}</span>
+        </td>
+        <td class="p-3 text-right font-mono text-lg" 
+            :class="{
+                'text-green-600': log.action_type === 'IN' || log.action_type === 'CREATE', 
+                'text-red-600': log.action_type === 'OUT',
+                'text-gray-400': log.action_type === 'DELETE'
+            }">
+            {{ log.action_type === 'IN' || log.action_type === 'CREATE' ? '+' : (log.action_type === 'DELETE' ? '' : '-') }}
+            {{ (log.qty_change || 0).toLocaleString() }}
+        </td>
+        <td class="p-3 text-right font-bold">
+            {{ 
+                (
+                    (log.qty_change || 0) * ((materials || []).find(m => m.id === log.material_id)?.cost_per_unit || 0)
+                ).toLocaleString() 
+            }}
+        </td>
+        
+        <td class="p-3 text-gray-600">
+            {{ log.note }}
+            <div v-if="log.width_used" class="text-xs text-gray-400 mt-1">
+                (ขนาด: {{ log.length_used }}ม. x {{ log.width_used }}ม.)
+            </div>
+        </td>
+        <td class="p-3">{{ log.action_by }}</td>
+    </tr>
+    <tr v-if="!paginatedLogs || paginatedLogs.length === 0">
+        <td colspan="7" class="p-8 text-center text-gray-500">❌ ไม่พบข้อมูลประวัติ</td>
+    </tr>
+</tbody>
+                </table>
+                
+                <div class="p-4 border-t flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50">
+                    <div class="text-xs text-gray-500">
+                        แสดง {{ paginatedLogs.length }} จากทั้งหมด {{ (filteredLogs || []).length }} รายการ (หน้าที่ {{ invLogPage }} / {{ totalLogPages }})
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <button @click="changeLogPage(invLogPage - 1)" :disabled="invLogPage === 1" class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50">
+                            &larr; ก่อนหน้า
+                        </button>
+                        
+                        <div class="flex items-center gap-1">
+                            <span>หน้า</span>
+                            <input type="number" v-model.lazy="invLogPage" @change="changeLogPage(invLogPage)"
+                                min="1" :max="totalLogPages"
+                                class="w-16 text-center border rounded p-1 text-sm focus:ring-2 focus:ring-blue-300 outline-none">
+                            <span>/ {{ totalLogPages }}</span>
+                        </div>
+
+                        <button @click="changeLogPage(invLogPage + 1)" :disabled="invLogPage === totalLogPages" class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50">
+                            ถัดไป &rarr;
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div> <transition name="modal">
+        <div v-if="matModal.isOpen" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                <h3 class="text-xl font-bold mb-4 border-b pb-2">{{ matModal.mode === 'add' ? 'เพิ่มวัสดุใหม่' : 'แก้ไขวัสดุ' }}</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-sm font-bold mb-1">ชื่อวัสดุ *</label>
+                        <input v-model="matModal.data.name" class="w-full border p-2 rounded" placeholder="ระบุชื่อวัสดุ">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold mb-1">ยี่ห้อ (Brand)</label>
+                        <input v-model="matModal.data.brand" class="w-full border p-2 rounded" placeholder="เช่น 3M, Avery">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">ร้านค้าที่จำหน่าย</label>
+                        <input v-model="matModal.data.supplier" class="w-full border p-2 rounded" placeholder="เช่น ร้าน A, Shopee">
+                    </div>
+
+                    <div class="col-span-2">
+                        <label class="block text-sm font-bold mb-1">สเปค / รายละเอียดเพิ่มเติม</label>
+                        <textarea v-model="matModal.data.details" rows="2" class="w-full border p-2 rounded" placeholder="รายละเอียดอื่นๆ..."></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold mb-1">หมวดหมู่</label>
+                        <select v-model="matModal.data.category" class="w-full border p-2 rounded">
+                            <option v-for="c in materialCategories" :value="c">{{ c }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">ประเภทการนับ</label>
+                        <select v-model="matModal.data.type" class="w-full border p-2 rounded">
+                            <option v-for="t in materialTypes" :value="t.id">{{ t.label }}</option>
+                        </select>
+                    </div>
+
+                    <div v-if="matModal.data.type === 'roll'" class="col-span-2 bg-blue-50 p-3 rounded border border-blue-200">
+                        <label class="block text-sm font-bold mb-1 text-blue-800">หน้ากว้าง (เมตร)</label>
+                        <input type="number" step="0.01" v-model="matModal.data.width" class="w-full border p-2 rounded">
+                        <p class="text-xs text-blue-600 mt-1">* ระบบจะใช้ค่านี้คูณกับความยาวที่เบิก เพื่อตัดสต็อกเป็น ตร.ม.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold mb-1">จุดเตือนขั้นต่ำ</label>
+                        <input type="number" v-model="matModal.data.min_alert" class="w-full border p-2 rounded">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">หน่วยนับ</label>
+                        <input type="text" v-model="matModal.data.unit" 
+                               class="w-full border p-2 rounded" 
+                               :disabled="matModal.data.type === 'roll'"
+                               placeholder="เช่น ขวด, กล่อง, อัน">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">ต้นทุนต่อหน่วย</label>
+                        <input type="number" v-model="matModal.data.cost_per_unit" class="w-full border p-2 rounded">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">จำนวนตั้งต้น</label>
+                        <input type="number" v-model="matModal.data.remaining_qty" class="w-full border p-2 rounded bg-gray-50" :disabled="matModal.mode === 'edit'">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button @click="matModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
+                    <button @click="saveMaterial" class="px-4 py-2 bg-blue-600 text-white rounded">บันทึก</button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <transition name="modal">
+        <div v-if="stockActionModal.isOpen" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h3 class="text-xl font-bold" :class="stockActionModal.type === 'IN' ? 'text-green-600' : 'text-red-600'">
+                        {{ stockActionModal.type === 'IN' ? '📥 รับสินค้าเข้าสต็อก' : '✂️ เบิกใช้วัสดุ' }}
+                    </h3>
+                    <span class="text-sm bg-gray-100 px-2 py-1 rounded">{{ stockActionModal.material.name }}</span>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold mb-1">วันที่ทำรายการ</label>
+                        <input type="date" v-model="stockActionModal.data.date" class="w-full border p-2 rounded">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">ผู้ทำรายการ</label>
+                        <input type="text" v-model="stockActionModal.data.user" class="w-full border p-2 rounded bg-gray-50" readonly>
+                    </div>
+
+                    <div v-if="stockActionModal.material.type === 'roll'" class="bg-yellow-50 p-4 rounded border border-yellow-200">
+                        <label class="block text-sm font-bold mb-1 text-yellow-800">
+                            {{ stockActionModal.type === 'IN' ? 'ความยาวที่รับเข้า (เมตร)' : 'ความยาวที่เบิกใช้ (เมตร)' }}
+                        </label>
+                        <input type="number" step="0.1" v-model="stockActionModal.data.length" class="w-full border p-2 rounded text-lg font-bold">
+                        <p class="text-sm mt-2 text-gray-600">
+                            คำนวณ: {{ stockActionModal.data.length || 0 }} ม. x {{ stockActionModal.material.width }} ม. = 
+                            <strong class="text-lg">{{ (stockActionModal.data.length * stockActionModal.material.width).toFixed(2) }}</strong> ตร.ม.
+                        </p>
+                    </div>
+                    <div v-else>
+                        <label class="block text-sm font-bold mb-1">จำนวน ({{ stockActionModal.material.unit }})</label>
+                        <input type="number" v-model="stockActionModal.data.qty" class="w-full border p-2 rounded text-lg font-bold">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold mb-1">หมายเหตุ / เหตุผล</label>
+                        <input type="text" v-model="stockActionModal.data.note" placeholder="เช่น ซื้อเพิ่ม, ใช้กับงาน Job-xxx" class="w-full border p-2 rounded">
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <button @click="stockActionModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
+                    <button @click="submitStockAction" class="px-4 py-2 text-white rounded font-bold"
+                            :class="stockActionModal.type === 'IN' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'">
+                        ยืนยันรายการ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <transition name="modal">
+        <div v-if="customerModal.isOpen" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <h3 class="text-xl font-bold mb-4 border-b pb-2">{{ customerModal.data.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้าใหม่' }}</h3>
+                <div class="space-y-4">
+                    <div><label class="block text-sm font-bold mb-1">ชื่อองค์กร / ลูกค้า *</label><input v-model="customerModal.data.name" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-1">เลขผู้เสียภาษี</label><input v-model="customerModal.data.tax_id" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-1">เบอร์โทร</label><input v-model="customerModal.data.phone" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-1">ที่อยู่</label><textarea v-model="customerModal.data.address" rows="3" class="w-full border p-2 rounded"></textarea></div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button @click="customerModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
+                    <button @click="submitCustomerModal" class="px-4 py-2 bg-blue-600 text-white rounded">บันทึก</button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <transition name="modal">
+        <div v-if="statusModal.isOpen" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-sm w-full p-6 text-center">
+                <h3 class="text-xl font-bold mb-4">อัปเดตสถานะงาน</h3>
+                <p class="mb-4 text-gray-600">Job ID: <span class="font-bold text-black">{{ statusModal.job.job_id }}</span></p>
+                <div class="text-left mb-6">
+                    <label class="block text-sm font-bold mb-2">เลือกสถานะใหม่:</label>
+                    <select v-model="statusModal.currentStatus" class="w-full border p-2 rounded">
+                        <option v-for="(info, key) in statusOptions" :value="key">{{ info.label }}</option>
+                    </select>
+                </div>
+                <div class="flex justify-center gap-3">
+                    <button @click="statusModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
+                    <button @click="saveStatusChange" class="px-4 py-2 bg-blue-600 text-white rounded">บันทึก</button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <transition name="modal">
+        <div v-if="confirmModal.isOpen" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-sm w-full p-6 text-center">
+                <div class="text-5xl mb-4">⚠️</div>
+                <h3 class="text-lg font-bold mb-4">{{ confirmModal.message }}</h3>
+                <div class="flex justify-center gap-3">
+                    <button @click="confirmModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
+                    <button @click="handleConfirmAction" class="px-4 py-2 bg-blue-600 text-white rounded font-bold">ยืนยัน</button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <transition name="toast">
+        <div v-if="toast.visible" class="fixed top-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded shadow-lg z-50 flex items-center gap-2"
+             :class="toast.type === 'error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'">
+            <span v-if="toast.type === 'error'">❌</span>
+            <span v-else>✅</span>
+            {{ toast.message }}
+        </div>
+    </transition>
+
+</div> <script src="inventory.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
