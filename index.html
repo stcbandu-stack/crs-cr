@@ -50,7 +50,9 @@
             <form @submit.prevent="handleLogin">
                 <input v-model="loginData.email" type="email" placeholder="อีเมล" class="w-full p-2 mb-3 border rounded" required>
                 <input v-model="loginData.password" type="password" placeholder="รหัสผ่าน" class="w-full p-2 mb-3 border rounded" required>
-                <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Login</button>
+                <button type="submit" :disabled="isLoading" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {{ isLoading ? 'กำลังตรวจสอบ...' : 'Login' }}
+                </button>
             </form>
         </div>
     </div>
@@ -227,7 +229,7 @@
                 <div class="fixed bottom-0 left-0 w-full bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex flex-col sm:flex-row justify-center gap-4 no-print border-t z-10">
                     <button @click="showPreview = false" class="bg-gray-500 text-white px-6 py-2 rounded shadow w-full sm:w-auto">แก้ไข</button>
                     <button onclick="window.print()" class="bg-purple-600 text-white px-6 py-2 rounded shadow w-full sm:w-auto">🖨️ พิมพ์ / PDF</button>
-                    <button @click="submitOrder" v-if="!isHistoryView" class="bg-green-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-green-700 w-full sm:w-auto">ยืนยันส่งคำสั่งงาน</button>
+                    <button @click="submitOrder" :disabled="isLoading" v-if="!isHistoryView" class="bg-green-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-green-700 w-full sm:w-auto disabled:opacity-50">ยืนยันส่งคำสั่งงาน</button>
                     <button @click="currentPage='dashboard'" v-if="isHistoryView" class="bg-gray-800 text-white px-6 py-2 rounded shadow w-full sm:w-auto">ปิด</button>
                 </div>
                 <div class="h-32 no-print"></div>
@@ -356,7 +358,7 @@
                 <div class="flex flex-col md:flex-row gap-4 items-end">
                     <div class="w-full md:w-1/3"><label class="block text-sm text-gray-600 mb-1">ชื่อบริการ</label><input v-model="newService.name" type="text" class="w-full border p-2 rounded"></div>
                     <div class="w-full md:w-1/4"><label class="block text-sm text-gray-600 mb-1">ราคา (บาท)</label><input v-model="newService.price" type="number" class="w-full border p-2 rounded"></div>
-                    <div class="w-full md:w-auto"><button @click="addService" class="bg-green-600 text-white px-6 py-2 rounded w-full md:w-auto">+ บันทึกรายการ</button></div>
+                    <div class="w-full md:w-auto"><button @click="addService" :disabled="isLoading" class="bg-green-600 text-white px-6 py-2 rounded w-full md:w-auto disabled:opacity-50">+ บันทึกรายการ</button></div>
                 </div>
             </div>
             <div class="bg-white shadow rounded overflow-hidden">
@@ -617,7 +619,9 @@
                 </div>
                 <div class="mt-6 flex justify-end gap-3">
                     <button @click="matModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
-                    <button @click="saveMaterial" class="px-4 py-2 bg-blue-600 text-white rounded">บันทึก</button>
+                    <button @click="saveMaterial" :disabled="isLoading" class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
+                        {{ isLoading ? 'กำลังบันทึก...' : 'บันทึก' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -666,9 +670,9 @@
 
                 <div class="mt-6 flex justify-end gap-3">
                     <button @click="stockActionModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
-                    <button @click="submitStockAction" class="px-4 py-2 text-white rounded font-bold"
+                    <button @click="submitStockAction" :disabled="isLoading" class="px-4 py-2 text-white rounded font-bold disabled:opacity-50"
                             :class="stockActionModal.type === 'IN' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'">
-                        ยืนยันรายการ
+                        {{ isLoading ? 'กำลังบันทึก...' : 'ยืนยันรายการ' }}
                     </button>
                 </div>
             </div>
@@ -687,7 +691,9 @@
                 </div>
                 <div class="mt-6 flex justify-end gap-3">
                     <button @click="customerModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
-                    <button @click="submitCustomerModal" class="px-4 py-2 bg-blue-600 text-white rounded">บันทึก</button>
+                    <button @click="submitCustomerModal" :disabled="isLoading" class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
+                        {{ isLoading ? 'กำลังบันทึก...' : 'บันทึก' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -719,7 +725,9 @@
                 <h3 class="text-lg font-bold mb-4">{{ confirmModal.message }}</h3>
                 <div class="flex justify-center gap-3">
                     <button @click="confirmModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
-                    <button @click="handleConfirmAction" class="px-4 py-2 bg-blue-600 text-white rounded font-bold">ยืนยัน</button>
+                    <button @click="handleConfirmAction" :disabled="isLoading" class="px-4 py-2 bg-blue-600 text-white rounded font-bold disabled:opacity-50">
+                        {{ isLoading ? 'กำลังทำงาน...' : 'ยืนยัน' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -731,6 +739,39 @@
             <span v-if="toast.type === 'error'">❌</span>
             <span v-else>✅</span>
             {{ toast.message }}
+        </div>
+    </transition>
+	
+	<transition name="modal">
+        <div v-if="deviceLimitModal.isOpen" class="fixed inset-0 bg-black bg-opacity-80 z-[100] flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+                <div class="text-center mb-6">
+                    <div class="text-5xl mb-2">🚫</div>
+                    <h3 class="text-xl font-bold text-red-600">จำกัดการเข้าใช้งาน 2 อุปกรณ์</h3>
+                    <p class="text-gray-600 text-sm mt-2">
+                        ขณะนี้มีอุปกรณ์อื่นเข้าใช้งานบัญชี <b>{{ userProfile.email }}</b> เต็มจำนวนแล้ว (2/2) <br>
+                        กรุณาเลือก <b>"เตะ"</b> อุปกรณ์ที่ไม่ใช้ออก 1 เครื่อง เพื่อเข้าสู่ระบบ
+                    </p>
+                </div>
+
+                <div class="space-y-3 mb-6">
+                    <div v-for="sess in deviceLimitModal.sessions" :key="sess.id" class="flex items-center justify-between p-3 border rounded bg-gray-50 hover:bg-gray-100">
+                        <div>
+                            <div class="font-bold text-gray-800">{{ sess.device_name || 'Unknown Device' }}</div>
+                            <div class="text-xs text-gray-500">ใช้งานล่าสุด: {{ formatDateTime(sess.last_active) }}</div>
+                        </div>
+                        <button @click="kickDevice(sess.id)" :disabled="isLoading" class="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-2 rounded shadow transition disabled:opacity-50">
+                            {{ isLoading ? 'กำลังเตะ...' : '🦶 เตะออก' }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="text-center border-t pt-4">
+                    <button @click="cancelLogin" class="text-gray-500 hover:text-gray-800 underline text-sm">
+                        ยกเลิก / เข้าสู่ระบบด้วยบัญชีอื่น
+                    </button>
+                </div>
+            </div>
         </div>
     </transition>
 
