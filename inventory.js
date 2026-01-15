@@ -1,5 +1,5 @@
 // ไฟล์: inventory.js
-function useInventory(_supabase, userProfile, showToast, confirmAction) {
+function useInventory(_supabase, userProfile, showToast, confirmAction, isLoading) {
     const { ref, computed, watch } = Vue;
 
     // --- STATE ---
@@ -13,6 +13,10 @@ function useInventory(_supabase, userProfile, showToast, confirmAction) {
     ]);
 
     // UI States
+    const matSearch = ref('');
+    const viewMode = ref('grid');
+    const activeTab = ref('printing');
+
     const invSearch = ref('');
     const invCategoryFilter = ref('');
     const invMonthFilter = ref(''); 
@@ -27,41 +31,72 @@ function useInventory(_supabase, userProfile, showToast, confirmAction) {
     const sortedMaterials = computed(() => {
         if (!materials.value) return [];
         let items = materials.value.filter(m => !m.is_deleted);
+
+        // 1. Filter by Tab
+        if (activeTab.value === 'printing') {
+            items = items.filter(m => m.type === 'roll');
+        } else {
+            items = items.filter(m => m.type !== 'roll');
+        }
+
+        // 2. Filter by Search
+        const q = matSearch.value.toLowerCase().trim();
+        if (q) {
+            items = items.filter(m => 
+                (m.name || '').toLowerCase().includes(q) || 
+                (m.brand || '').toLowerCase().includes(q) ||
+                (m.category || '').toLowerCase().includes(q)
+            );
+        }
+
+        // 3. Sort
         items.sort((a, b) => {
-            if (a.category !== b.category) return a.category.localeCompare(b.category);
-            return (b.remaining_qty || 0) - (a.remaining_qty || 0);
+            if (a.remaining_qty === 0 && b.remaining_qty !== 0) return -1;
+            if (b.remaining_qty === 0 && a.remaining_qty !== 0) return 1;
+            
+            const aLow = a.remaining_qty <= a.min_alert;
+            const bLow = b.remaining_qty <= b.min_alert;
+            if (aLow && !bLow) return -1;
+            if (!aLow && bLow) return 1;
+            
+            return a.category.localeCompare(b.category);
         });
+        
         return items;
+    });
+
+    // [ใหม่] คำนวณยอดรวม 3 ยอด (In, Out, Balance) เป็นตัวเงิน
+    const totalStockValue = computed(() => {
+        return sortedMaterials.value.reduce((sum, m) => sum + (m.remaining_qty * (m.cost_per_unit || 0)), 0);
+    });
+    const totalInValue = computed(() => {
+        return sortedMaterials.value.reduce((sum, m) => sum + ((m.total_in || 0) * (m.cost_per_unit || 0)), 0);
+    });
+    const totalOutValue = computed(() => {
+        return sortedMaterials.value.reduce((sum, m) => sum + ((m.total_out || 0) * (m.cost_per_unit || 0)), 0);
     });
 
     const filteredLogs = computed(() => {
         if (!materialLogs.value) return [];
-        
         const q = (invSearch.value || '').toLowerCase().trim();
         const catFilter = invCategoryFilter.value;
         const monthFilter = invMonthFilter.value;
 
         return materialLogs.value.filter(log => {
             const m = materials.value.find(x => x.id === log.material_id) || {};
-            // ถ้าเป็นรายการที่ถูกลบไปแล้ว ให้พยายามหาชื่อจาก log note หรือแสดงชื่อเดิม
             const matName = m.name || (log.note && log.note.includes('Deleted') ? 'รายการถูกลบ' : 'Unknown/Deleted');
-            const matCat = m.category || '';
-            const logNote = log.note || '';
-
-            const matchSearch = !q || matName.toLowerCase().includes(q) || logNote.toLowerCase().includes(q);
-            const matchCat = !catFilter || matCat === catFilter;
             
+            const matchSearch = !q || matName.toLowerCase().includes(q) || (log.note || '').toLowerCase().includes(q);
+            const matchCat = !catFilter || m.category === catFilter;
             let matchMonth = true;
             if (monthFilter && log.action_date) {
                 matchMonth = log.action_date.startsWith(monthFilter);
             }
-
             return matchSearch && matchCat && matchMonth;
         });
     });
 
     const totalLogPages = computed(() => Math.ceil(filteredLogs.value.length / logsPerPage) || 1);
-    
     const paginatedLogs = computed(() => {
         const start = (invLogPage.value - 1) * logsPerPage;
         return filteredLogs.value.slice(start, start + logsPerPage);
@@ -76,7 +111,6 @@ function useInventory(_supabase, userProfile, showToast, confirmAction) {
     };
 
     const fetchLogs = async () => {
-        // ดึง 1000 รายการล่าสุด
         const { data, error } = await _supabase.from('material_logs').select('*').order('action_date', { ascending: false }).limit(1000);
         if (!error) materialLogs.value = data || [];
     };
@@ -89,40 +123,27 @@ function useInventory(_supabase, userProfile, showToast, confirmAction) {
 
     const exportLogsCSV = () => {
         const dataToExport = filteredLogs.value;
-        if (dataToExport.length === 0) return showToast('ไม่พบข้อมูลตามเงื่อนไข', 'error');
-        
-        let csvContent = "\uFEFFวันที่,รายการ,หมวดหมู่,ประเภทการทำรายการ,จำนวน,ต้นทุน/หน่วย,รวมมูลค่า,คงเหลือ(ขณะนั้น),รายละเอียด,ผู้ทำ\n";
-        
+        if (dataToExport.length === 0) return showToast('ไม่พบข้อมูล', 'error');
+        let csv = "\uFEFFวันที่,รายการ,หมวดหมู่,ประเภท,จำนวน,ทุน,รวม,คงเหลือ,รายละเอียด,ผู้ทำ\n";
         dataToExport.forEach(log => {
-            const mat = materials.value.find(m => m.id === log.material_id) || {};
-            const date = log.action_date ? new Date(log.action_date).toLocaleDateString('th-TH') : '-';
-            const cost = mat.cost_per_unit || 0;
-            
-            // แปลง Action Type เป็นภาษาไทย
-            let actionLabel = 'อื่นๆ';
-            if (log.action_type === 'IN') actionLabel = 'รับเข้า';
-            else if (log.action_type === 'OUT') actionLabel = 'เบิกออก';
-            else if (log.action_type === 'CREATE') actionLabel = 'เพิ่มใหม่';
-            else if (log.action_type === 'DELETE') actionLabel = 'ลบรายการ';
-
-            const row = [
-                date, `"${(mat.name || 'Unknown/Deleted').replace(/"/g, '""')}"`, 
-                mat.category || '-', 
-                actionLabel,
-                log.qty_change, 
-                cost, 
-                log.qty_change * cost, 
+            const m = materials.value.find(x => x.id === log.material_id) || {};
+            csv += [
+                log.action_date ? log.action_date.slice(0,10) : '-',
+                `"${(m.name || '-').replace(/"/g,'""')}"`,
+                m.category || '-',
+                log.action_type,
+                log.qty_change,
+                m.cost_per_unit || 0,
+                log.qty_change * (m.cost_per_unit || 0),
                 log.current_qty_snapshot,
-                `"${(log.note || '').replace(/"/g, '""')}"`, 
+                `"${(log.note||'').replace(/"/g,'""')}"`,
                 log.action_by
-            ].join(",");
-            csvContent += row + "\n";
+            ].join(",") + "\n";
         });
-        
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `stock_log_export.csv`;
+        link.download = "stock_logs.csv";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -131,18 +152,14 @@ function useInventory(_supabase, userProfile, showToast, confirmAction) {
     const openMatModal = (mode, item = null) => {
         matModal.value.mode = mode;
         matModal.value.isOpen = true;
-        if (mode === 'edit' && item) {
-            matModal.value.data = { ...item }; 
-        } else {
-            matModal.value.data = { 
-                name: '', category: 'ไวนิล', type: 'roll', 
-                brand: '', supplier: '', details: '',
-                width: 0, remaining_qty: 0, min_alert: 5, unit: '', cost_per_unit: 0, image_url: '' 
-            };
-        }
+        matModal.value.data = mode === 'edit' && item ? { ...item } : { 
+            name: '', category: 'ไวนิล', type: 'roll', brand: '', supplier: '', details: '',
+            width: 0, remaining_qty: 0, min_alert: 5, unit: '', cost_per_unit: 0, image_url: '' 
+        };
     };
 
     const saveMaterial = async () => {
+        if (isLoading.value) return; 
         const d = matModal.value.data;
         if (!d.name) return showToast('ระบุชื่อวัสดุ', 'error');
         if (d.type === 'roll') d.unit = 'ตร.ม.';
@@ -159,68 +176,53 @@ function useInventory(_supabase, userProfile, showToast, confirmAction) {
             is_deleted: false 
         };
 
-        let res;
-        // [MODIFIED] เพิ่มการบันทึก Log เมื่อสร้างใหม่
-        if (matModal.value.mode === 'add') {
-             // ใช้ select() เพื่อขอ ID กลับมาบันทึก Log
-             res = await _supabase.from('materials').insert(payload).select().single();
-             if(!res.error && res.data) {
-                await _supabase.from('material_logs').insert({
-                    material_id: res.data.id, 
-                    action_type: 'CREATE', 
-                    qty_change: parseFloat(d.remaining_qty || 0),
-                    current_qty_snapshot: parseFloat(d.remaining_qty || 0),
-                    note: 'สร้างรายการวัสดุใหม่', 
-                    action_by: userProfile.value.display_name || userProfile.value.email, 
-                    action_date: new Date().toISOString()
-                });
-             }
-        } else {
-             res = await _supabase.from('materials').update(payload).eq('id', d.id);
-        }
-
-        if (res.error) showToast(res.error.message, 'error');
-        else {
+        isLoading.value = true;
+        try {
+            let res;
+            if (matModal.value.mode === 'add') {
+                 res = await _supabase.from('materials').insert(payload).select().single();
+                 if(!res.error && res.data) {
+                    await _supabase.from('material_logs').insert({
+                        material_id: res.data.id, action_type: 'CREATE', qty_change: parseFloat(d.remaining_qty || 0),
+                        current_qty_snapshot: parseFloat(d.remaining_qty || 0), note: 'เพิ่มใหม่', 
+                        action_by: userProfile.value.display_name, action_date: new Date().toISOString()
+                    });
+                 }
+            } else {
+                 res = await _supabase.from('materials').update(payload).eq('id', d.id);
+            }
+            if (res.error) throw res.error;
             showToast('บันทึกเรียบร้อย');
             matModal.value.isOpen = false;
             fetchMaterials();
-            fetchLogs(); // Refresh logs ด้วย
-        }
+        } catch (e) { showToast(e.message, 'error'); } 
+        finally { isLoading.value = false; }
     };
 
     const deleteMaterial = (id) => {
         if (typeof confirmAction !== 'function') return;
         confirmAction('ต้องการลบรายการนี้ใช่ไหม?', async () => {
             const { error } = await _supabase.from('materials').update({ is_deleted: true }).eq('id', id);
-            
-            if (error) showToast(error.message, 'error');
-            else { 
-                // [MODIFIED] บันทึก Log เมื่อลบ
+            if (!error) {
                 await _supabase.from('material_logs').insert({
-                    material_id: id, 
-                    action_type: 'DELETE', 
-                    qty_change: 0,
-                    current_qty_snapshot: 0,
-                    note: 'ลบรายการ (Soft Delete)', 
-                    action_by: userProfile.value.display_name || userProfile.value.email, 
-                    action_date: new Date().toISOString()
+                    material_id: id, action_type: 'DELETE', qty_change: 0, current_qty_snapshot: 0,
+                    note: 'ลบรายการ', action_by: userProfile.value.display_name, action_date: new Date().toISOString()
                 });
-
-                showToast('ลบเรียบร้อย'); 
+                showToast('ลบเรียบร้อย');
                 fetchMaterials();
-                fetchLogs();
-            }
+            } else { showToast(error.message, 'error'); }
         });
     };
 
     const openStockAction = (type, item) => {
         stockActionModal.value = {
             isOpen: true, type: type, material: item,
-            data: { qty: 0, length: 0, date: new Date().toISOString().split('T')[0], user: userProfile.value.display_name || userProfile.value.email, note: '' }
+            data: { qty: 0, length: 0, date: new Date().toISOString().split('T')[0], user: userProfile.value.display_name, note: '' }
         };
     };
 
     const submitStockAction = async () => {
+        if (isLoading.value) return; 
         const { type, material, data } = stockActionModal.value;
         const inputQty = parseFloat(data.qty || 0);
         const inputLength = parseFloat(data.length || 0);
@@ -244,27 +246,30 @@ function useInventory(_supabase, userProfile, showToast, confirmAction) {
         const newTotalIn = type === 'IN' ? (material.total_in || 0) + finalQtyChange : material.total_in;
         const newTotalOut = type === 'OUT' ? (material.total_out || 0) + finalQtyChange : material.total_out;
 
-        const { error: mError } = await _supabase.from('materials').update({ remaining_qty: newBalance, total_in: newTotalIn, total_out: newTotalOut }).eq('id', material.id);
-        if (mError) return showToast(mError.message, 'error');
-
-        await _supabase.from('material_logs').insert({
-            material_id: material.id, action_type: type, qty_change: finalQtyChange,
-            width_used: material.type === 'roll' ? material.width : null,
-            length_used: material.type === 'roll' ? inputLength : null,
-            current_qty_snapshot: newBalance, note: noteText, action_by: data.user, action_date: data.date
-        });
-
-        showToast('บันทึกเรียบร้อย', 'success');
-        stockActionModal.value.isOpen = false;
-        fetchMaterials();
+        isLoading.value = true;
+        try {
+            const { error } = await _supabase.from('materials').update({ remaining_qty: newBalance, total_in: newTotalIn, total_out: newTotalOut }).eq('id', material.id);
+            if(error) throw error;
+            await _supabase.from('material_logs').insert({
+                material_id: material.id, action_type: type, qty_change: finalQtyChange,
+                width_used: material.type === 'roll' ? material.width : null, length_used: material.type === 'roll' ? inputLength : null,
+                current_qty_snapshot: newBalance, note: noteText, action_by: data.user, action_date: data.date
+            });
+            showToast('เรียบร้อย', 'success');
+            stockActionModal.value.isOpen = false;
+            fetchMaterials();
+        } catch(e) { showToast(e.message, 'error'); }
+        finally { isLoading.value = false; }
     };
 
     return {
         materials, materialLogs, materialCategories, materialTypes,
-        invSearch, invCategoryFilter, invMonthFilter, 
-        invLogPage, logsPerPage,
+        // UI Vars
+        matSearch, viewMode, activeTab, sortedMaterials, 
+        totalStockValue, totalInValue, totalOutValue, // [ใหม่] ส่งออกไปใช้หน้า HTML
+        invSearch, invCategoryFilter, invMonthFilter, invLogPage, logsPerPage,
         matModal, stockActionModal,
-        sortedMaterials, filteredLogs, totalLogPages, paginatedLogs,
+        filteredLogs, totalLogPages, paginatedLogs,
         fetchMaterials, fetchLogs, changeLogPage, exportLogsCSV,
         openMatModal, saveMaterial, deleteMaterial, openStockAction, submitStockAction
     };
