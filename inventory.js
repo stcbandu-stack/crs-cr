@@ -1,67 +1,81 @@
-// ไฟล์: inventory.js
+// ============ INVENTORY CONFIGURATION CONSTANTS ============
+const MATERIAL_CATEGORIES = ['ไวนิล', 'สติกเกอร์', 'หมึกพิมพ์', 'อุปกรณ์ประกอบ', 'อื่นๆ'];
+
+const MATERIAL_TYPES = [
+    { id: 'roll', label: 'ม้วน (คำนวณ ตร.ม.)' },
+    { id: 'piece', label: 'ชิ้น (ตัดใช้เป็นชิ้น)' },
+    { id: 'pack', label: 'หน่วย/แพ็ค (เบิกทั้งหน่วย)' }
+];
+
+const INVENTORY_CONFIG = {
+    LOGS_PER_PAGE: 50,
+    DEFAULT_UNIT: 'ชิ้น',
+    ROLL_UNIT: 'ตร.ม.'
+};
+
+// ============ INVENTORY COMPOSABLE ============
 function useInventory(_supabase, userProfile, showToast, confirmAction, isLoading) {
     const { ref, computed, watch } = Vue;
 
-    // --- STATE ---
+    // ================== STATE ==================
     const materials = ref([]);
     const materialLogs = ref([]);
-    const materialCategories = ref(['ไวนิล', 'สติกเกอร์', 'หมึกพิมพ์', 'อุปกรณ์ประกอบ', 'อื่นๆ']);
-    const materialTypes = ref([
-        { id: 'roll', label: 'ม้วน (คำนวณ ตร.ม.)' },
-        { id: 'piece', label: 'ชิ้น (ตัดใช้เป็นชิ้น)' },
-        { id: 'pack', label: 'หน่วย/แพ็ค (เบิกทั้งหน่วย)' }
-    ]);
+    const materialCategories = ref(MATERIAL_CATEGORIES);
+    const materialTypes = ref(MATERIAL_TYPES);
 
-    // UI States
-    const matSearch = ref('');
+    // UI States for Materials View
+    const materialSearch = ref('');
     const viewMode = ref('grid');
     const activeTab = ref('printing');
 
-    const invSearch = ref('');
-    const invCategoryFilter = ref('');
-    const invMonthFilter = ref(''); 
-    const invLogPage = ref(1);
-    const logsPerPage = 50;
+    // UI States for Logs View
+    const logSearch = ref('');
+    const logCategoryFilter = ref('');
+    const logMonthFilter = ref('');
+    const currentLogPage = ref(1);
 
-    // Modals
-    const matModal = ref({ isOpen: false, mode: 'add', data: {} });
+    // Modal States
+    const materialModal = ref({ isOpen: false, mode: 'add', data: {} });
     const stockActionModal = ref({ isOpen: false, type: 'IN', data: {} });
 
-    // --- COMPUTED ---
+    // ================== COMPUTED PROPERTIES ==================
     const sortedMaterials = computed(() => {
         if (!materials.value) return [];
         let items = materials.value.filter(m => !m.is_deleted);
 
-        // 1. Filter by Tab
+        // Filter by active tab (printing vs. consumables)
         if (activeTab.value === 'printing') {
             items = items.filter(m => m.type === 'roll');
         } else {
             items = items.filter(m => m.type !== 'roll');
         }
 
-        // 2. Filter by Search
-        const q = matSearch.value.toLowerCase().trim();
-        if (q) {
-            items = items.filter(m => 
-                (m.name || '').toLowerCase().includes(q) || 
-                (m.brand || '').toLowerCase().includes(q) ||
-                (m.category || '').toLowerCase().includes(q)
+        // Filter by search query
+        const query = materialSearch.value.toLowerCase().trim();
+        if (query) {
+            items = items.filter(m =>
+                (m.name || '').toLowerCase().includes(query) ||
+                (m.brand || '').toLowerCase().includes(query) ||
+                (m.category || '').toLowerCase().includes(query)
             );
         }
 
-        // 3. Sort
+        // Sort by: out of stock first, then low stock, then by category
         items.sort((a, b) => {
+            // Prioritize out of stock items
             if (a.remaining_qty === 0 && b.remaining_qty !== 0) return -1;
             if (b.remaining_qty === 0 && a.remaining_qty !== 0) return 1;
-            
+
+            // Prioritize low stock items
             const aLow = a.remaining_qty <= a.min_alert;
             const bLow = b.remaining_qty <= b.min_alert;
             if (aLow && !bLow) return -1;
             if (!aLow && bLow) return 1;
-            
+
+            // Sort by category
             return a.category.localeCompare(b.category);
         });
-        
+
         return items;
     });
 
@@ -78,125 +92,206 @@ function useInventory(_supabase, userProfile, showToast, confirmAction, isLoadin
 
     const filteredLogs = computed(() => {
         if (!materialLogs.value) return [];
-        const q = (invSearch.value || '').toLowerCase().trim();
-        const catFilter = invCategoryFilter.value;
-        const monthFilter = invMonthFilter.value;
+        const query = (logSearch.value || '').toLowerCase().trim();
+        const categoryFilter = logCategoryFilter.value;
+        const monthFilter = logMonthFilter.value;
 
         return materialLogs.value.filter(log => {
-            const m = materials.value.find(x => x.id === log.material_id) || {};
-            const matName = m.name || (log.note && log.note.includes('Deleted') ? 'รายการถูกลบ' : 'Unknown/Deleted');
-            
-            const matchSearch = !q || matName.toLowerCase().includes(q) || (log.note || '').toLowerCase().includes(q);
-            const matchCat = !catFilter || m.category === catFilter;
-            let matchMonth = true;
+            const material = materials.value.find(x => x.id === log.material_id) || {};
+            const materialName = material.name ||
+                (log.note && log.note.includes('Deleted') ? 'รายการถูกลบ' : 'Unknown/Deleted');
+
+            // Check search match
+            const matchesSearch = !query ||
+                materialName.toLowerCase().includes(query) ||
+                (log.note || '').toLowerCase().includes(query);
+
+            // Check category filter
+            const matchesCategory = !categoryFilter || material.category === categoryFilter;
+
+            // Check month filter
+            let matchesMonth = true;
             if (monthFilter && log.action_date) {
-                matchMonth = log.action_date.startsWith(monthFilter);
+                matchesMonth = log.action_date.startsWith(monthFilter);
             }
-            return matchSearch && matchCat && matchMonth;
+
+            return matchesSearch && matchesCategory && matchesMonth;
         });
     });
 
-    const totalLogPages = computed(() => Math.ceil(filteredLogs.value.length / logsPerPage) || 1);
-    const paginatedLogs = computed(() => {
-        const start = (invLogPage.value - 1) * logsPerPage;
-        return filteredLogs.value.slice(start, start + logsPerPage);
+    const totalLogPages = computed(() => {
+        return Math.ceil(filteredLogs.value.length / INVENTORY_CONFIG.LOGS_PER_PAGE) || 1;
     });
 
-    watch([invSearch, invCategoryFilter, invMonthFilter], () => { invLogPage.value = 1; });
+    const paginatedLogs = computed(() => {
+        const start = (currentLogPage.value - 1) * INVENTORY_CONFIG.LOGS_PER_PAGE;
+        return filteredLogs.value.slice(start, start + INVENTORY_CONFIG.LOGS_PER_PAGE);
+    });
 
-    // --- ACTIONS ---
+    // Reset pagination when filters change
+    watch([logSearch, logCategoryFilter, logMonthFilter], () => {
+        currentLogPage.value = 1;
+    });
+
+    // ================== ACTION FUNCTIONS ==================
     const fetchMaterials = async () => {
-        const { data, error } = await _supabase.from('materials').select('*'); 
-        if (!error) materials.value = data || [];
+        try {
+            const { data, error } = await _supabase.from('materials').select('*');
+            if (error) throw error;
+            materials.value = data || [];
+        } catch (e) {
+            console.error('Error fetching materials:', e);
+            showToast('ไม่สามารถโหลดข้อมูลวัสดุ', 'error');
+        }
     };
 
     const fetchLogs = async () => {
-        const { data, error } = await _supabase.from('material_logs').select('*').order('action_date', { ascending: false }).limit(1000);
-        if (!error) materialLogs.value = data || [];
+        try {
+            const { data, error } = await _supabase
+                .from('material_logs')
+                .select('*')
+                .order('action_date', { ascending: false })
+                .limit(1000);
+            if (error) throw error;
+            materialLogs.value = data || [];
+        } catch (e) {
+            console.error('Error fetching logs:', e);
+            showToast('ไม่สามารถโหลดประวัติการจัดการสต็อก', 'error');
+        }
     };
 
-    const changeLogPage = (p) => {
-        if (p < 1) p = 1;
-        if (p > totalLogPages.value) p = totalLogPages.value;
-        invLogPage.value = p;
+    const changeLogPage = (pageNum) => {
+        let newPage = pageNum;
+        if (newPage < 1) newPage = 1;
+        if (newPage > totalLogPages.value) newPage = totalLogPages.value;
+        currentLogPage.value = newPage;
     };
 
     const exportLogsCSV = () => {
         const dataToExport = filteredLogs.value;
-        if (dataToExport.length === 0) return showToast('ไม่พบข้อมูล', 'error');
-        let csv = "\uFEFFวันที่,รายการ,หมวดหมู่,ประเภท,จำนวน,ทุน,รวม,คงเหลือ,รายละเอียด,ผู้ทำ\n";
-        dataToExport.forEach(log => {
-            const m = materials.value.find(x => x.id === log.material_id) || {};
-            csv += [
-                log.action_date ? log.action_date.slice(0,10) : '-',
-                `"${(m.name || '-').replace(/"/g,'""')}"`,
-                m.category || '-',
-                log.action_type,
-                log.qty_change,
-                m.cost_per_unit || 0,
-                log.qty_change * (m.cost_per_unit || 0),
-                log.current_qty_snapshot,
-                `"${(log.note||'').replace(/"/g,'""')}"`,
-                log.action_by
-            ].join(",") + "\n";
-        });
-        const blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
-        const link = document.createElement("a");
+        if (dataToExport.length === 0) {
+            return showToast('ไม่พบข้อมูล', 'error');
+        }
+
+        const headers = 'วันที่,รายการ,หมวดหมู่,ประเภท,จำนวน,ทุน,รวม,คงเหลือ,รายละเอียด,ผู้ทำ';
+        const csvContent = dataToExport
+            .map(log => {
+                const material = materials.value.find(m => m.id === log.material_id) || {};
+                return [
+                    log.action_date ? log.action_date.slice(0, 10) : '-',
+                    `"${(material.name || '-').replace(/"/g, '""')}"`,
+                    material.category || '-',
+                    log.action_type,
+                    log.qty_change,
+                    material.cost_per_unit || 0,
+                    log.qty_change * (material.cost_per_unit || 0),
+                    log.current_qty_snapshot,
+                    `"${(log.note || '').replace(/"/g, '""')}"`,
+                    log.action_by
+                ].join(',');
+            })
+            .join('\n');
+
+        const csvData = `\uFEFF${headers}\n${csvContent}`;
+        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = "stock_logs.csv";
+        link.download = 'stock_logs.csv';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
 
-    const openMatModal = (mode, item = null) => {
-        matModal.value.mode = mode;
-        matModal.value.isOpen = true;
-        matModal.value.data = mode === 'edit' && item ? { ...item } : { 
-            name: '', category: 'ไวนิล', type: 'roll', brand: '', supplier: '', details: '',
-            width: 0, remaining_qty: 0, min_alert: 5, unit: '', cost_per_unit: 0, image_url: '' 
-        };
+    const getDefaultMaterialData = () => ({
+        name: '',
+        category: MATERIAL_CATEGORIES[0],
+        type: 'roll',
+        brand: '',
+        supplier: '',
+        details: '',
+        width: 0,
+        remaining_qty: 0,
+        min_alert: 5,
+        unit: '',
+        cost_per_unit: 0,
+        image_url: ''
+    });
+
+    const openMaterialModal = (mode, item = null) => {
+        materialModal.value.mode = mode;
+        materialModal.value.isOpen = true;
+        materialModal.value.data = (mode === 'edit' && item)
+            ? { ...item }
+            : getDefaultMaterialData();
     };
 
     const saveMaterial = async () => {
-        if (isLoading.value) return; 
-        const d = matModal.value.data;
-        if (!d.name) return showToast('ระบุชื่อวัสดุ', 'error');
-        if (d.type === 'roll') d.unit = 'ตร.ม.';
-        if (!d.unit) d.unit = 'ชิ้น';
+        if (isLoading.value) return;
 
+        const materialData = materialModal.value.data;
+
+        // Validation
+        if (!materialData.name) {
+            return showToast('ระบุชื่อวัสดุ', 'error');
+        }
+
+        // Set unit based on material type
+        if (materialData.type === 'roll') {
+            materialData.unit = INVENTORY_CONFIG.ROLL_UNIT;
+        } else if (!materialData.unit) {
+            materialData.unit = INVENTORY_CONFIG.DEFAULT_UNIT;
+        }
+
+        // Prepare payload
         const payload = {
-            name: d.name, category: d.category, type: d.type,
-            brand: d.brand, supplier: d.supplier, details: d.details,
-            width: parseFloat(d.width || 0),
-            remaining_qty: parseFloat(d.remaining_qty || 0),
-            unit: d.unit, cost_per_unit: parseFloat(d.cost_per_unit || 0),
-            min_alert: parseFloat(d.min_alert || 0),
-            image_url: d.image_url,
-            is_deleted: false 
+            name: materialData.name,
+            category: materialData.category,
+            type: materialData.type,
+            brand: materialData.brand,
+            supplier: materialData.supplier,
+            details: materialData.details,
+            width: parseFloat(materialData.width || 0),
+            remaining_qty: parseFloat(materialData.remaining_qty || 0),
+            unit: materialData.unit,
+            cost_per_unit: parseFloat(materialData.cost_per_unit || 0),
+            min_alert: parseFloat(materialData.min_alert || 0),
+            image_url: materialData.image_url,
+            is_deleted: false
         };
 
         isLoading.value = true;
         try {
-            let res;
-            if (matModal.value.mode === 'add') {
-                 res = await _supabase.from('materials').insert(payload).select().single();
-                 if(!res.error && res.data) {
+            let result;
+            if (materialModal.value.mode === 'add') {
+                result = await _supabase.from('materials').insert(payload).select().single();
+
+                if (!result.error && result.data) {
+                    // Log the material creation
                     await _supabase.from('material_logs').insert({
-                        material_id: res.data.id, action_type: 'CREATE', qty_change: parseFloat(d.remaining_qty || 0),
-                        current_qty_snapshot: parseFloat(d.remaining_qty || 0), note: 'เพิ่มใหม่', 
-                        action_by: userProfile.value.display_name, action_date: new Date().toISOString()
+                        material_id: result.data.id,
+                        action_type: 'CREATE',
+                        qty_change: parseFloat(materialData.remaining_qty || 0),
+                        current_qty_snapshot: parseFloat(materialData.remaining_qty || 0),
+                        note: 'เพิ่มใหม่',
+                        action_by: userProfile.value.display_name,
+                        action_date: new Date().toISOString()
                     });
-                 }
+                }
             } else {
-                 res = await _supabase.from('materials').update(payload).eq('id', d.id);
+                result = await _supabase.from('materials').update(payload).eq('id', materialData.id);
             }
-            if (res.error) throw res.error;
+
+            if (result.error) throw result.error;
+
             showToast('บันทึกเรียบร้อย');
-            matModal.value.isOpen = false;
-            fetchMaterials();
-        } catch (e) { showToast(e.message, 'error'); } 
-        finally { isLoading.value = false; }
+            materialModal.value.isOpen = false;
+            await fetchMaterials();
+        } catch (e) {
+            console.error('Error saving material:', e);
+            showToast(`ไม่สามารถบันทึก: ${e.message}`, 'error');
+        } finally {
+            isLoading.value = false;
+        }
     };
 
     const deleteMaterial = (id) => {
@@ -264,13 +359,14 @@ function useInventory(_supabase, userProfile, showToast, confirmAction, isLoadin
 
     return {
         materials, materialLogs, materialCategories, materialTypes,
-        // UI Vars
-        matSearch, viewMode, activeTab, sortedMaterials, 
-        totalStockValue, totalInValue, totalOutValue, // [ใหม่] ส่งออกไปใช้หน้า HTML
-        invSearch, invCategoryFilter, invMonthFilter, invLogPage, logsPerPage,
-        matModal, stockActionModal,
+        // UI State Variables
+        materialSearch, viewMode, activeTab, sortedMaterials,
+        totalStockValue, totalInValue, totalOutValue,
+        logSearch, logCategoryFilter, logMonthFilter, currentLogPage, materialModal, stockActionModal,
+        // Computed Properties
         filteredLogs, totalLogPages, paginatedLogs,
+        // Action Functions
         fetchMaterials, fetchLogs, changeLogPage, exportLogsCSV,
-        openMatModal, saveMaterial, deleteMaterial, openStockAction, submitStockAction
+        openMaterialModal, saveMaterial, deleteMaterial, openStockAction, submitStockAction
     };
 }

@@ -1,23 +1,33 @@
 const { createClient } = supabase;
-// ⚠️ เปลี่ยน URL/KEY ของคุณที่นี่
 const supabaseUrl = 'https://crogaiqfxaaydpfmoqbc.supabase.co'; 
 const supabaseKey = 'sb_publishable_85_6DqvJkJo3t93qH0K31A_PbGQIaRw';
 const _supabase = createClient(supabaseUrl, supabaseKey);
 
 const { createApp, ref, computed, watch, onMounted } = Vue;
 
+// ==================== CONFIGURATION CONSTANTS ====================
+const CONFIG = {
+    ITEMS_PER_PAGE: 25,
+    SESSION_CHECK_INTERVAL: 60000,
+    TOAST_DURATION: 3000,
+    MAX_DEVICES: 2,
+    DEVICE_ID_KEY: 'device_id'
+};
+
+const STATUS_OPTIONS = {
+    'waiting_approval': { label: 'รออนุมัติ', class: 'bg-gray-200 text-gray-700' },
+    'received':         { label: 'เข้าสู่ระบบแล้ว', class: 'bg-blue-100 text-blue-700' },
+    'queueing':         { label: 'รอคิวปริ้น', class: 'bg-yellow-100 text-yellow-700' },
+    'printing':         { label: 'กำลังปริ้น', class: 'bg-purple-100 text-purple-700' },
+    'completed':        { label: 'เสร็จแล้ว', class: 'bg-green-100 text-green-700' },
+    'cancelled':        { label: 'ยกเลิก', class: 'bg-red-100 text-red-700' },
+};
+
 createApp({
     setup() {
-        // ================== ZONE 1: CONFIG ==================
-        const statusOptions = {
-            'waiting_approval': { label: 'รออนุมัติ', class: 'bg-gray-200 text-gray-700' },
-            'received':         { label: 'เข้าสู่ระบบแล้ว', class: 'bg-blue-100 text-blue-700' },
-            'queueing':         { label: 'รอคิวปริ้น', class: 'bg-yellow-100 text-yellow-700' },
-            'printing':         { label: 'กำลังปริ้น', class: 'bg-purple-100 text-purple-700' },
-            'completed':        { label: 'เสร็จแล้ว', class: 'bg-green-100 text-green-700' },
-            'cancelled':        { label: 'ยกเลิก', class: 'bg-red-100 text-red-700' },
-        };
-        const itemsPerPage = 25;
+        // Use global constants instead of local ones
+        const statusOptions = STATUS_OPTIONS;
+        const itemsPerPage = CONFIG.ITEMS_PER_PAGE;
 
         // ================== ZONE 2: STATE ==================
         const session = ref(null);
@@ -50,61 +60,78 @@ createApp({
         const customerModal = ref({ isOpen: false, data: { id: null, name: '', phone: '', address: '', tax_id: '' } });
         const statusModal = ref({ isOpen: false, job: null, currentStatus: '' });
 
-        // ================== ZONE 3: HELPERS ==================
-        const showToast = (msg, type = 'success') => { toast.value = { visible: true, message: msg, type: type }; setTimeout(() => { toast.value.visible = false; }, 3000); };
+        // ================== ZONE 3: HELPER FUNCTIONS ==================
+        const showToast = (msg, type = 'success') => {
+            toast.value = { visible: true, message: msg, type };
+            setTimeout(() => { toast.value.visible = false; }, CONFIG.TOAST_DURATION);
+        };
         
-        const confirmAction = (msg, cb) => { confirmModal.value = { isOpen: true, message: msg, onConfirm: cb }; };
+        const confirmAction = (msg, cb) => {
+            confirmModal.value = { isOpen: true, message: msg, onConfirm: cb };
+        };
 
-        const handleConfirmAction = async () => { 
-            if (isLoading.value) return; 
-            if (confirmModal.value.onConfirm) {
-                isLoading.value = true;
-                try {
-                    await confirmModal.value.onConfirm();
-                } catch (e) {
-                    console.error(e);
-                    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error');
-                } finally {
-                    isLoading.value = false;
-                    confirmModal.value.isOpen = false; 
-                }
-            } else {
-                confirmModal.value.isOpen = false; 
+        const handleConfirmAction = async () => {
+            if (isLoading.value) return;
+            if (!confirmModal.value.onConfirm) {
+                confirmModal.value.isOpen = false;
+                return;
+            }
+            
+            isLoading.value = true;
+            try {
+                await confirmModal.value.onConfirm();
+            } catch (e) {
+                console.error(e);
+                showToast(`เกิดข้อผิดพลาด: ${e.message}`, 'error');
+            } finally {
+                isLoading.value = false;
+                confirmModal.value.isOpen = false;
             }
         };
         
-        const formatDate = (d) => d ? new Date(d).toLocaleDateString('th-TH') : '-';
-        const formatDateTime = (d) => d ? new Date(d).toLocaleString('th-TH') : '-';
-        const formatCurrency = (a) => (a || 0).toLocaleString();
+        const formatDate = (dateStr) => dateStr
+            ? new Date(dateStr).toLocaleDateString('th-TH')
+            : '-';
+        
+        const formatDateTime = (dateStr) => dateStr
+            ? new Date(dateStr).toLocaleString('th-TH')
+            : '-';
+        
+        const formatCurrency = (amount) => (amount || 0).toLocaleString();
 
         const isAdmin = computed(() => userProfile.value.role === 'admin');
         const canManageStock = computed(() => ['admin', 'user'].includes(userProfile.value.role));
         const grandTotal = computed(() => orderForm.value.items.reduce((sum, item) => sum + item.total, 0));
 
-        // [ใหม่] ฟังก์ชันหาชื่อ Browser/OS แบบง่ายๆ
         const getDeviceName = () => {
             const ua = navigator.userAgent;
-            let name = "Unknown Device";
-            if (ua.includes("Win")) name = "Windows PC";
-            else if (ua.includes("Mac")) name = "Mac";
-            else if (ua.includes("Linux")) name = "Linux";
-            else if (ua.includes("Android")) name = "Android";
-            else if (ua.includes("iPhone") || ua.includes("iPad")) name = "iOS";
+            const osMap = [
+                { pattern: "Win", name: "Windows PC" },
+                { pattern: "Mac", name: "Mac" },
+                { pattern: "Linux", name: "Linux" },
+                { pattern: "Android", name: "Android" },
+                { pattern: "iPhone", name: "iOS" },
+                { pattern: "iPad", name: "iOS" }
+            ];
+            const browserMap = [
+                { pattern: "Chrome", name: " (Chrome)" },
+                { pattern: "Safari", name: " (Safari)" },
+                { pattern: "Firefox", name: " (Firefox)" },
+                { pattern: "Edge", name: " (Edge)" }
+            ];
             
-            if (ua.includes("Chrome")) name += " (Chrome)";
-            else if (ua.includes("Safari")) name += " (Safari)";
-            else if (ua.includes("Firefox")) name += " (Firefox)";
-            else if (ua.includes("Edge")) name += " (Edge)";
+            let osName = osMap.find(os => ua.includes(os.pattern))?.name || "Unknown Device";
+            let browserName = browserMap.find(br => ua.includes(br.pattern))?.name || "";
             
-            return name;
+            return osName + browserName;
         };
 
         // ================== ZONE 4: INVENTORY INTEGRATION ==================
-        const inventory = typeof useInventory !== 'undefined' 
-            ? useInventory(_supabase, userProfile, showToast, confirmAction, isLoading) 
-            : {}; 
+        const inventory = typeof useInventory !== 'undefined'
+            ? useInventory(_supabase, userProfile, showToast, confirmAction, isLoading)
+            : {};
 
-        // ================== ZONE 5: AUTH & SESSION LOGIC ==================
+        // ================== ZONE 5: AUTHENTICATION & SESSION LOGIC ==================
         
         // [ใหม่] เช็คว่าเครื่องเรายังอยู่ในระบบไหม (ถ้าโดนเตะ ฟังก์ชันนี้จะ Logout ให้)
         const checkSessionValidity = async () => {

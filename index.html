@@ -4,39 +4,102 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบสั่งงานร้านป้าย</title>
-    
+
+    <!-- External Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
     <style>
-        body { font-family: 'Sarabun', sans-serif; }
-        .modal-enter-active, .modal-leave-active { transition: opacity 0.3s ease; }
-        .modal-enter-from, .modal-leave-to { opacity: 0; }
-        .toast-enter-active { animation: bounce-in 0.5s; }
-        .toast-leave-active { transition: all 0.3s ease; opacity: 0; transform: translateY(-100%); }
+        /* ========== BASE STYLES ========== */
+        body {
+            font-family: 'Sarabun', sans-serif;
+        }
+
+        /* ========== ANIMATION TRANSITIONS ========== */
+        .modal-enter-active,
+        .modal-leave-active {
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-enter-from,
+        .modal-leave-to {
+            opacity: 0;
+        }
+
+        .toast-enter-active {
+            animation: bounce-in 0.5s;
+        }
+
+        .toast-leave-active {
+            transition: all 0.3s ease;
+            opacity: 0;
+            transform: translateY(-100%);
+        }
+
         @keyframes bounce-in {
-            0% { transform: translateY(-100%) translateX(-50%); opacity: 0; }
-            50% { transform: translateY(20%) translateX(-50%); opacity: 1; }
-            100% { transform: translateY(0) translateX(-50%); }
+            0% {
+                transform: translateY(-100%) translateX(-50%);
+                opacity: 0;
+            }
+            50% {
+                transform: translateY(20%) translateX(-50%);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(0) translateX(-50%);
+            }
         }
-        /* Mobile-first A4 adjustment */
-        .A4 { 
-            background: white; 
-            width: 100%; 
-            max-width: 210mm; 
-            padding: 10mm; 
-            margin: 20px auto; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-            overflow-x: auto; /* Allow scroll if content is too wide */
+
+        /* ========== A4 DOCUMENT PRINTING ========== */
+        .A4 {
+            background: white;
+            width: 100%;
+            max-width: 210mm;
+            padding: 10mm;
+            margin: 20px auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
         }
+
         @media print {
-            @page { size: A4; margin: 0; }
-            body { margin: 0; padding: 0; background-color: white; }
-            .no-print { display: none !important; }
-            .print-only { display: block !important; }
-            .A4 { width: 210mm; min-height: 297mm; margin: 0; padding: 10mm !important; box-shadow: none; border: none; page-break-after: auto; overflow: visible; }
-            ::-webkit-scrollbar { display: none; }
+            @page {
+                size: A4;
+                margin: 0;
+            }
+
+            body {
+                margin: 0;
+                padding: 0;
+                background-color: white;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .print-only {
+                display: block !important;
+            }
+
+            .A4 {
+                width: 210mm;
+                min-height: 297mm;
+                margin: 0;
+                padding: 10mm !important;
+                box-shadow: none;
+                border: none;
+                page-break-after: auto;
+                overflow: visible;
+            }
+
+            ::-webkit-scrollbar {
+                display: none;
+            }
         }
     </style>
 </head>
@@ -400,7 +463,7 @@
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                     <div class="relative w-full md:w-96">
                         <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
-                        <input v-model="matSearch" placeholder="ค้นหาชื่อ, ยี่ห้อ, รหัส..." 
+                        <input v-model="materialSearch" placeholder="ค้นหาชื่อ, ยี่ห้อ, รหัส..." 
                                class="pl-9 pr-4 py-2 border rounded w-full focus:ring-2 focus:ring-blue-300 outline-none">
                     </div>
 
@@ -418,7 +481,7 @@
                         <button @click="currentPage = 'inventory_logs'; fetchLogs()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200 border">
                             📜 ประวัติ
                         </button>
-                        <button @click="openMatModal('add')" class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 font-bold">
+                        <button @click="openMaterialModal('add')" class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 font-bold">
                             + เพิ่มวัสดุ
                         </button>
                     </div>
@@ -478,7 +541,7 @@
                     <div class="p-2 border-t border-black border-opacity-10 flex gap-1 bg-black bg-opacity-5">
                         <button :disabled="isLoading" @click="openStockAction('IN', mat)" class="flex-1 bg-white text-green-700 py-1 rounded hover:bg-green-50 text-sm font-bold shadow-sm disabled:opacity-50">+ รับ</button>
                         <button :disabled="isLoading || mat.remaining_qty === 0" @click="openStockAction('OUT', mat)" class="flex-1 bg-white text-red-700 py-1 rounded hover:bg-red-50 text-sm font-bold shadow-sm disabled:opacity-50">- เบิก</button>
-                        <button :disabled="isLoading" @click="openMatModal('edit', mat)" class="w-8 flex items-center justify-center bg-white text-gray-600 rounded hover:bg-gray-50 shadow-sm disabled:opacity-50">⚙️</button>
+                        <button :disabled="isLoading" @click="openMaterialModal('edit', mat)" class="w-8 flex items-center justify-center bg-white text-gray-600 rounded hover:bg-gray-50 shadow-sm disabled:opacity-50">⚙️</button>
                         <button :disabled="isLoading" @click="deleteMaterial(mat.id)" class="w-8 flex items-center justify-center bg-white text-red-500 rounded hover:bg-red-50 shadow-sm disabled:opacity-50">🗑️</button>
                     </div>
                 </div>
@@ -534,7 +597,7 @@
                                     <div class="flex justify-center gap-1">
                                         <button :disabled="isLoading" @click="openStockAction('IN', mat)" class="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1 rounded text-xs font-bold disabled:opacity-50">+ รับ</button>
                                         <button :disabled="isLoading || mat.remaining_qty === 0" @click="openStockAction('OUT', mat)" class="bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1 rounded text-xs font-bold disabled:opacity-50">- เบิก</button>
-                                        <button :disabled="isLoading" @click="openMatModal('edit', mat)" class="text-gray-400 hover:text-blue-600 px-2 disabled:opacity-50">⚙️</button>
+                                        <button :disabled="isLoading" @click="openMaterialModal('edit', mat)" class="text-gray-400 hover:text-blue-600 px-2 disabled:opacity-50">⚙️</button>
                                         <button :disabled="isLoading" @click="deleteMaterial(mat.id)" class="text-gray-400 hover:text-red-600 px-2 disabled:opacity-50">🗑️</button>
                                     </div>
                                 </td>
@@ -554,16 +617,16 @@
 
             <div class="flex flex-col md:flex-row gap-4 mb-4 items-center">
                 <div class="flex flex-col md:flex-row gap-2 flex-1 w-full bg-white p-4 rounded shadow">
-                    <input v-model="invSearch" placeholder="ค้นหาชื่อวัสดุ / หมายเหตุ..." class="border p-2 rounded flex-1">
+                    <input v-model="logSearch" placeholder="ค้นหาชื่อวัสดุ / หมายเหตุ..." class="border p-2 rounded flex-1">
                     
-                    <select v-model="invCategoryFilter" class="border p-2 rounded w-full md:w-auto">
+                    <select v-model="logCategoryFilter" class="border p-2 rounded w-full md:w-auto">
                         <option value="">ทุกหมวดหมู่</option>
                         <option v-for="c in materialCategories" :value="c">{{ c }}</option>
                     </select>
 
                     <div class="flex items-center gap-2">
                         <span class="text-sm text-gray-500 whitespace-nowrap">เดือน:</span>
-                        <input type="month" v-model="invMonthFilter" class="border p-2 rounded w-full md:w-auto">
+                        <input type="month" v-model="logMonthFilter" class="border p-2 rounded w-full md:w-auto">
                     </div>
                 </div>
                 
@@ -633,23 +696,23 @@
                 
                 <div class="p-4 border-t flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50">
                     <div class="text-xs text-gray-500 text-center sm:text-left">
-                        แสดง {{ paginatedLogs.length }} จากทั้งหมด {{ (filteredLogs || []).length }} รายการ (หน้าที่ {{ invLogPage }} / {{ totalLogPages }})
+                        แสดง {{ paginatedLogs.length }} จากทั้งหมด {{ (filteredLogs || []).length }} รายการ (หน้าที่ {{ currentLogPage }} / {{ totalLogPages }})
                     </div>
                     
                     <div class="flex items-center gap-2">
-                        <button @click="changeLogPage(invLogPage - 1)" :disabled="invLogPage === 1" class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50">
+                        <button @click="changeLogPage(currentLogPage - 1)" :disabled="currentLogPage === 1" class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50">
                             &larr; ก่อนหน้า
                         </button>
                         
                         <div class="flex items-center gap-1">
                             <span>หน้า</span>
-                            <input type="number" v-model.lazy="invLogPage" @change="changeLogPage(invLogPage)"
+                            <input type="number" v-model.lazy="currentLogPage" @change="changeLogPage(currentLogPage)"
                                 min="1" :max="totalLogPages"
                                 class="w-16 text-center border rounded p-1 text-sm focus:ring-2 focus:ring-blue-300 outline-none">
                             <span>/ {{ totalLogPages }}</span>
                         </div>
 
-                        <button @click="changeLogPage(invLogPage + 1)" :disabled="invLogPage === totalLogPages" class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50">
+                        <button @click="changeLogPage(currentLogPage + 1)" :disabled="currentLogPage === totalLogPages" class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50">
                             ถัดไป &rarr;
                         </button>
                     </div>
@@ -660,70 +723,70 @@
     </div>
 
     <transition name="modal">
-        <div v-if="matModal.isOpen" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div v-if="materialModal.isOpen" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-                <h3 class="text-xl font-bold mb-4 border-b pb-2">{{ matModal.mode === 'add' ? 'เพิ่มวัสดุใหม่' : 'แก้ไขวัสดุ' }}</h3>
+                <h3 class="text-xl font-bold mb-4 border-b pb-2">{{ materialModal.mode === 'add' ? 'เพิ่มวัสดุใหม่' : 'แก้ไขวัสดุ' }}</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="sm:col-span-2">
                         <label class="block text-sm font-bold mb-1">ชื่อวัสดุ *</label>
-                        <input v-model="matModal.data.name" class="w-full border p-2 rounded" placeholder="ระบุชื่อวัสดุ">
+                        <input v-model="materialModal.data.name" class="w-full border p-2 rounded" placeholder="ระบุชื่อวัสดุ">
                     </div>
 
                     <div>
                         <label class="block text-sm font-bold mb-1">ยี่ห้อ (Brand)</label>
-                        <input v-model="matModal.data.brand" class="w-full border p-2 rounded" placeholder="เช่น 3M, Avery">
+                        <input v-model="materialModal.data.brand" class="w-full border p-2 rounded" placeholder="เช่น 3M, Avery">
                     </div>
                     <div>
                         <label class="block text-sm font-bold mb-1">ร้านค้าที่จำหน่าย</label>
-                        <input v-model="matModal.data.supplier" class="w-full border p-2 rounded" placeholder="เช่น ร้าน A, Shopee">
+                        <input v-model="materialModal.data.supplier" class="w-full border p-2 rounded" placeholder="เช่น ร้าน A, Shopee">
                     </div>
 
                     <div class="sm:col-span-2">
                         <label class="block text-sm font-bold mb-1">สเปค / รายละเอียดเพิ่มเติม</label>
-                        <textarea v-model="matModal.data.details" rows="2" class="w-full border p-2 rounded" placeholder="รายละเอียดอื่นๆ..."></textarea>
+                        <textarea v-model="materialModal.data.details" rows="2" class="w-full border p-2 rounded" placeholder="รายละเอียดอื่นๆ..."></textarea>
                     </div>
 
                     <div>
                         <label class="block text-sm font-bold mb-1">หมวดหมู่</label>
-                        <select v-model="matModal.data.category" class="w-full border p-2 rounded">
+                        <select v-model="materialModal.data.category" class="w-full border p-2 rounded">
                             <option v-for="c in materialCategories" :value="c">{{ c }}</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-sm font-bold mb-1">ประเภทการนับ</label>
-                        <select v-model="matModal.data.type" class="w-full border p-2 rounded">
+                        <select v-model="materialModal.data.type" class="w-full border p-2 rounded">
                             <option v-for="t in materialTypes" :value="t.id">{{ t.label }}</option>
                         </select>
                     </div>
 
-                    <div v-if="matModal.data.type === 'roll'" class="sm:col-span-2 bg-blue-50 p-3 rounded border border-blue-200">
+                    <div v-if="materialModal.data.type === 'roll'" class="sm:col-span-2 bg-blue-50 p-3 rounded border border-blue-200">
                         <label class="block text-sm font-bold mb-1 text-blue-800">หน้ากว้าง (เมตร)</label>
-                        <input type="number" step="0.01" v-model="matModal.data.width" class="w-full border p-2 rounded">
+                        <input type="number" step="0.01" v-model="materialModal.data.width" class="w-full border p-2 rounded">
                         <p class="text-xs text-blue-600 mt-1">* ระบบจะใช้ค่านี้คูณกับความยาวที่เบิก เพื่อตัดสต็อกเป็น ตร.ม.</p>
                     </div>
 
                     <div>
                         <label class="block text-sm font-bold mb-1">จุดเตือนขั้นต่ำ</label>
-                        <input type="number" v-model="matModal.data.min_alert" class="w-full border p-2 rounded">
+                        <input type="number" v-model="materialModal.data.min_alert" class="w-full border p-2 rounded">
                     </div>
                     <div>
                         <label class="block text-sm font-bold mb-1">หน่วยนับ</label>
-                        <input type="text" v-model="matModal.data.unit" 
+                        <input type="text" v-model="materialModal.data.unit" 
                                class="w-full border p-2 rounded" 
-                               :disabled="matModal.data.type === 'roll'"
+                               :disabled="materialModal.data.type === 'roll'"
                                placeholder="เช่น ขวด, กล่อง, อัน">
                     </div>
                     <div>
                         <label class="block text-sm font-bold mb-1">ต้นทุนต่อหน่วย</label>
-                        <input type="number" v-model="matModal.data.cost_per_unit" class="w-full border p-2 rounded">
+                        <input type="number" v-model="materialModal.data.cost_per_unit" class="w-full border p-2 rounded">
                     </div>
                     <div>
                         <label class="block text-sm font-bold mb-1">จำนวนตั้งต้น</label>
-                        <input type="number" v-model="matModal.data.remaining_qty" class="w-full border p-2 rounded bg-gray-50" :disabled="matModal.mode === 'edit'">
+                        <input type="number" v-model="materialModal.data.remaining_qty" class="w-full border p-2 rounded bg-gray-50" :disabled="materialModal.mode === 'edit'">
                     </div>
                 </div>
                 <div class="mt-6 flex justify-end gap-3">
-                    <button @click="matModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
+                    <button @click="materialModal.isOpen = false" class="px-4 py-2 bg-gray-200 rounded">ยกเลิก</button>
                     <button @click="saveMaterial" :disabled="isLoading" class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
                         {{ isLoading ? 'กำลังบันทึก...' : 'บันทึก' }}
                     </button>
