@@ -54,6 +54,7 @@ createApp({
         const searchQuery = ref('');
         const statusFilter = ref('');
         const currentPageNum = ref(1);
+        const previousPage = ref('dashboard');  // Track previous page for closing preview
 
         const toast = ref({ visible: false, message: '', type: 'success' });
         const confirmModal = ref({ isOpen: false, message: '', onConfirm: null });
@@ -306,6 +307,13 @@ createApp({
 
         const resetOrder = () => { orderForm.value = { customerType: 'general', selectedCustomer: null, customerName: '', branch: '', eventName: '', eventDate: '', items: [], creatorName: '' }; showPreview.value = false; generatedJobId.value = ''; isHistoryView.value = false; };
 
+        // Close preview and return to previous page
+        const closePreview = () => {
+            showPreview.value = false;
+            currentPage.value = previousPage.value || 'dashboard';
+            resetOrder();
+        };
+
         // ================== ZONE 7: HISTORY ==================
         const fetchHistory = async () => { currentPage.value = 'history'; const { data } = await _supabase.from('job_orders').select('*').order('created_at', { ascending: false }); jobHistory.value = data; };
         const filteredHistory = computed(() => jobHistory.value.filter(j => { const q = searchQuery.value.toLowerCase(); return (j.job_id.toLowerCase().includes(q) || (j.customer_name && j.customer_name.toLowerCase().includes(q))) && (!statusFilter.value || j.status === statusFilter.value); }));
@@ -313,7 +321,7 @@ createApp({
         const paginatedHistory = computed(() => filteredHistory.value.slice((currentPageNum.value - 1) * itemsPerPage, currentPageNum.value * itemsPerPage));
         watch([searchQuery, statusFilter], () => { currentPageNum.value = 1; });
         const changePage = (p) => { if (p >= 1 && p <= totalPages.value) currentPageNum.value = p; };
-        const viewJob = (j) => { orderForm.value = { customerName: j.customer_name, branch: j.branch, eventName: j.event_name, eventDate: j.event_date, items: j.items, creatorName: j.created_by }; generatedJobId.value = j.job_id; isHistoryView.value = true; currentPage.value = 'order'; showPreview.value = true; };
+        const viewJob = (j) => { previousPage.value = 'history'; orderForm.value = { customerName: j.customer_name, branch: j.branch, eventName: j.event_name, eventDate: j.event_date, items: j.items, creatorName: j.created_by }; generatedJobId.value = j.job_id; isHistoryView.value = true; currentPage.value = 'order'; showPreview.value = true; };
         const printJob = (j) => { viewJob(j); setTimeout(() => window.print(), 500); };
         const openStatusModal = (j) => { statusModal.value = { isOpen: true, job: j, currentStatus: j.status || 'waiting_approval' }; };
         const saveStatusChange = async () => { const j = statusModal.value.job; const s = statusModal.value.currentStatus; statusModal.value.isOpen = false; confirmAction(`ยืนยันเปลี่ยนสถานะเป็น "${statusOptions[s].label}"?`, async () => { await _supabase.from('job_orders').update({ status: s }).eq('job_id', j.job_id); showToast('เรียบร้อย'); fetchHistory(); }); };
@@ -341,7 +349,7 @@ createApp({
             deviceLimitModal, kickDevice, cancelLogin, formatDateTime,
 
             handleLogin, handleLogout, editDisplayName,
-            goToOrder, goToCustomers, goToServices,
+            goToOrder, goToCustomers, goToServices, closePreview,
             addItem, removeItem, updatePrice, calcRow, fillCustomerInfo, preparePreview, submitOrder, resetOrder,
             fetchHistory, viewJob, printJob, openStatusModal, saveStatusChange,
             addService, deleteService, updateServicePrice, deleteCustomer, openCustomerModal, submitCustomerModal,
