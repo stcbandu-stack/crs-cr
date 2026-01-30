@@ -7,59 +7,74 @@ const Dashboard: Component = () => {
   const navigate = useNavigate();
 
   return (
-    <div class="container mx-auto p-4">
-      <h2 class="text-2xl font-bold mb-6 text-center md:text-left">เมนูหลัก</h2>
+    <div class="container mx-auto p-6 max-w-6xl">
+      <h2 class="text-3xl font-bold mb-8 text-gray-800">📌 เมนูหลัก</h2>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* สั่งงาน */}
         <Card
-          icon="📝"
-          title="สั่งงาน"
-          description="สร้างใบสั่งงานใหม่"
-          borderColor="border-blue-500"
+          class="min-h-[200px] flex flex-col justify-center items-center text-center gap-4 hover:scale-105 transition-transform border-2 border-blue-100 hover:border-blue-500 hover:bg-blue-50"
           onClick={() => navigate('/order')}
-        />
+        >
+          <div class="text-6xl mb-2">📝</div>
+          <div>
+            <h3 class="text-2xl font-bold text-gray-800">สั่งงาน</h3>
+            <p class="text-gray-500 mt-1">สร้างใบสั่งงานใหม่</p>
+          </div>
+        </Card>
 
         {/* ประวัติใบสั่งงาน */}
         <Card
-          icon="📂"
-          title="ประวัติใบสั่งงาน"
-          description="ดูและแก้ไขงานเก่า"
-          borderColor="border-green-500"
+          class="min-h-[200px] flex flex-col justify-center items-center text-center gap-4 hover:scale-105 transition-transform border-2 border-green-100 hover:border-green-500 hover:bg-green-50"
           onClick={() => navigate('/history')}
-        />
+        >
+          <div class="text-6xl mb-2">📂</div>
+          <div>
+            <h3 class="text-2xl font-bold text-gray-800">ประวัติใบสั่งงาน</h3>
+            <p class="text-gray-500 mt-1">ดูและแก้ไขงานเก่า</p>
+          </div>
+        </Card>
 
         {/* คลังวัสดุ */}
         <Show when={can('manage_stock')}>
           <Card
-            icon="📦"
-            title="คลังวัสดุ"
-            description="จัดการสต็อก / เบิกจ่าย"
-            borderColor="border-teal-500"
+            class="min-h-[200px] flex flex-col justify-center items-center text-center gap-4 hover:scale-105 transition-transform border-2 border-teal-100 hover:border-teal-500 hover:bg-teal-50"
             onClick={() => navigate('/inventory')}
-          />
+          >
+            <div class="text-6xl mb-2">📦</div>
+            <div>
+              <h3 class="text-2xl font-bold text-gray-800">คลังวัสดุ</h3>
+              <p class="text-gray-500 mt-1">จัดการสต็อก / เบิกจ่าย</p>
+            </div>
+          </Card>
         </Show>
 
         {/* ฐานข้อมูลลูกค้า */}
         <Show when={isAdmin()}>
           <Card
-            icon="👥"
-            title="ฐานข้อมูลลูกค้า"
-            description="จัดการลูกค้าองค์กร"
-            borderColor="border-yellow-500"
+            class="min-h-[200px] flex flex-col justify-center items-center text-center gap-4 hover:scale-105 transition-transform border-2 border-yellow-100 hover:border-yellow-500 hover:bg-yellow-50"
             onClick={() => navigate('/customers')}
-          />
+          >
+            <div class="text-6xl mb-2">👥</div>
+            <div>
+              <h3 class="text-2xl font-bold text-gray-800">ฐานข้อมูลลูกค้า</h3>
+              <p class="text-gray-500 mt-1">จัดการลูกค้าองค์กร</p>
+            </div>
+          </Card>
         </Show>
 
         {/* ฐานข้อมูลราคา */}
         <Show when={canManageStock()}>
           <Card
-            icon="💰"
-            title="ฐานข้อมูลราคา"
-            description="จัดการราคาค่าบริการ"
-            borderColor="border-purple-500"
+            class="min-h-[200px] flex flex-col justify-center items-center text-center gap-4 hover:scale-105 transition-transform border-2 border-purple-100 hover:border-purple-500 hover:bg-purple-50"
             onClick={() => navigate('/services')}
-          />
+          >
+            <div class="text-6xl mb-2">💰</div>
+            <div>
+              <h3 class="text-2xl font-bold text-gray-800">ฐานข้อมูลราคา</h3>
+              <p class="text-gray-500 mt-1">จัดการราคาค่าบริการ</p>
+            </div>
+          </Card>
         </Show>
       </div>
     </div>

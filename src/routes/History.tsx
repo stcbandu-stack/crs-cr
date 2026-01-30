@@ -1,7 +1,7 @@
 import { Component, For, Show, createSignal, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useOrder } from '@/composables/useOrder';
-import { can } from '@/store/auth';
+import { can, isAdmin } from '@/store/auth';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { generateJobPdf } from '@/lib/pdf';
 import { Button, Input, Modal } from '@/components';
@@ -183,12 +183,23 @@ const History: Component = () => {
                         >
                           🖨️ PDF
                         </button>
+                        <Show when={isAdmin()}>
+                          <button
+                            onClick={() => {
+                              order.editJob(job);
+                              navigate('/order');
+                            }}
+                            class="bg-yellow-50 text-yellow-600 hover:bg-yellow-100 border border-yellow-200 px-3 py-1 rounded text-xs transition flex items-center gap-1"
+                          >
+                            ✏️ แก้ไข
+                          </button>
+                        </Show>
                         <Show when={can('change_status')}>
                           <button
                             onClick={() => openStatusModal(job)}
                             class="bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200 px-3 py-1 rounded text-xs transition flex items-center gap-1"
                           >
-                            ✏️ สถานะ
+                            🔄 สถานะ
                           </button>
                         </Show>
                       </div>

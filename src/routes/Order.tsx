@@ -21,7 +21,12 @@ const Order: Component = () => {
     <div class="container mx-auto p-4">
       {/* Back Button */}
       <button
-        onClick={() => navigate('/')}
+        onClick={() => {
+          if (order.isEditMode()) {
+            order.resetOrder();
+          }
+          navigate('/');
+        }}
         class="mb-4 text-gray-500 hover:text-gray-800 no-print flex items-center gap-1"
       >
         <span>←</span> กลับหน้าหลัก
@@ -30,7 +35,28 @@ const Order: Component = () => {
       {/* Order Form */}
       <Show when={!order.state.showPreview}>
         <div class="bg-white p-4 md:p-6 rounded shadow">
-          <h2 class="text-xl font-bold mb-4 border-b pb-2">รายละเอียดใบสั่งงาน</h2>
+          {/* Header with Edit Mode Indicator */}
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-2">
+            <h2 class="text-xl font-bold">
+              {order.isEditMode() ? '✏️ แก้ไขใบสั่งงาน' : 'รายละเอียดใบสั่งงาน'}
+            </h2>
+            <Show when={order.isEditMode()}>
+              <div class="flex items-center gap-2">
+                <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+                  กำลังแก้ไข: {order.state.generatedJobId}
+                </span>
+                <button
+                  onClick={() => {
+                    order.resetOrder();
+                    navigate('/history');
+                  }}
+                  class="text-red-500 hover:text-red-700 text-sm"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            </Show>
+          </div>
 
           {/* Customer Type */}
           <div class="mb-4 flex flex-col sm:flex-row gap-4">
@@ -260,10 +286,27 @@ const Order: Component = () => {
 
           {/* Actions */}
           <div class="mt-8 flex flex-col sm:flex-row justify-end gap-4 border-t pt-4">
-            <Button variant="secondary" onClick={order.resetOrder}>
+            <Button variant="secondary" onClick={() => {
+              order.resetOrder();
+              if (order.isEditMode()) {
+                navigate('/history');
+              }
+            }}>
               ยกเลิก
             </Button>
-            <Button onClick={order.preparePreview}>ตรวจสอบ / สรุปยอด</Button>
+            <Show when={order.isEditMode()}>
+              <Button variant="success" onClick={async () => {
+                const success = await order.updateJob();
+                if (success) {
+                  navigate('/history');
+                }
+              }}>
+                💾 บันทึกการแก้ไข
+              </Button>
+            </Show>
+            <Show when={!order.isEditMode()}>
+              <Button onClick={order.preparePreview}>ตรวจสอบ / สรุปยอด</Button>
+            </Show>
           </div>
         </div>
       </Show>

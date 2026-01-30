@@ -4,10 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { JobOrder, ProviderInfo } from '@/lib/types';
 import { Button } from '@/components';
+import { isAdmin } from '@/store/auth';
+import { useOrder } from '@/composables/useOrder';
 
 const JobDetail: Component = () => {
   const params = useParams();
   const navigate = useNavigate();
+  const order = useOrder();
   const [job, setJob] = createSignal<JobOrder | null>(null);
   const [provider, setProvider] = createSignal<ProviderInfo | null>(null);
   const [loading, setLoading] = createSignal(true);
@@ -46,6 +49,14 @@ const JobDetail: Component = () => {
     window.print();
   };
 
+  const handleEdit = () => {
+    const currentJob = job();
+    if (currentJob) {
+      order.editJob(currentJob);
+      navigate('/order');
+    }
+  };
+
   return (
     <div class="min-h-screen bg-gray-100 p-4 print:bg-white print:p-0">
       <Show when={!loading()} fallback={<div class="text-center p-10">กำลังโหลด...</div>}>
@@ -62,6 +73,11 @@ const JobDetail: Component = () => {
                    ← กลับหน้าประวัติ
                  </button>
                  <div class="flex gap-2">
+                   <Show when={isAdmin()}>
+                     <Button onClick={handleEdit} variant="secondary" class="bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100">
+                       ✏️ แก้ไขใบสั่งงาน
+                     </Button>
+                   </Show>
                    <Button onClick={handlePrint} variant="primary">🖨️ พิมพ์เอกสาร</Button>
                  </div>
               </div>

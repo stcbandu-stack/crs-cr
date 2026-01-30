@@ -412,6 +412,71 @@ const updateJobStatus = async (jobId: string, newStatus: JobStatus): Promise<boo
   });
 };
 
+// ============ Edit Job Actions (Admin Only) ============
+
+const editJob = (job: JobOrder): void => {
+  setState({
+    form: {
+      customerType: 'general',
+      selectedCustomer: null,
+      customerName: job.customer_name,
+      branch: job.branch || '',
+      eventName: job.event_name || '',
+      eventDate: job.event_date || '',
+      items: [...job.items], // Clone items
+      creatorName: job.created_by,
+    },
+    generatedJobId: job.job_id,
+    isHistoryView: false, // Not history view - we're editing
+    showPreview: false, // Show form, not preview
+  });
+};
+
+const updateJob = async (): Promise<boolean> => {
+  if (!state.form.eventDate || !state.form.customerName) {
+    showToast('กรอกข้อมูลให้ครบ', 'error');
+    return false;
+  }
+
+  if (!state.generatedJobId) {
+    showToast('ไม่พบเลขที่ใบสั่งงาน', 'error');
+    return false;
+  }
+
+  return new Promise((resolve) => {
+    openConfirm('ยืนยันบันทึกการแก้ไข?', async () => {
+      const payload = {
+        customer_name: state.form.customerName,
+        branch: state.form.branch,
+        event_name: state.form.eventName,
+        event_date: state.form.eventDate,
+        items: state.form.items,
+        total_price: grandTotal(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('job_orders')
+        .update(payload)
+        .eq('job_id', state.generatedJobId);
+
+      if (error) {
+        showToast(error.message, 'error');
+        resolve(false);
+        return;
+      }
+
+      showToast('บันทึกการแก้ไขเรียบร้อย!');
+      resetOrder();
+      resolve(true);
+    });
+  });
+};
+
+const isEditMode = (): boolean => {
+  return !!state.generatedJobId && !state.isHistoryView && !state.showPreview;
+};
+
 // ============ Setters ============
 
 const setSearchQuery = (value: string): void => setState('searchQuery', value);
@@ -462,6 +527,11 @@ export const useOrder = () => ({
   viewJob,
   printJob,
   updateJobStatus,
+
+  // Edit Actions (Admin Only)
+  editJob,
+  updateJob,
+  isEditMode,
 
   // Setters
   setSearchQuery,
