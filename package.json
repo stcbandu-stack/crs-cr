@@ -12,8 +12,6 @@
   "dependencies": {
     "@solidjs/router": "^0.14.0",
     "@supabase/supabase-js": "^2.45.0",
-    "@types/pdfmake": "^0.3.0",
-    "pdfmake": "^0.3.3",
     "solid-js": "^1.8.0"
   },
   "devDependencies": {
