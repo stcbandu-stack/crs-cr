@@ -36,8 +36,25 @@ const Login: Component = () => {
 
   return (
     <div class="min-h-screen flex items-center justify-center bg-blue-900 p-4">
-      <div class="bg-white p-6 md:p-8 rounded-lg shadow-lg w-full max-w-sm">
-        <h2 class="text-2xl font-bold mb-4 text-center text-blue-800">เข้าสู่ระบบ</h2>
+      <div class="bg-white p-6 md:p-8 rounded-lg shadow-2xl w-full max-w-sm">
+        {/* Logo and Header */}
+        <div class="flex flex-col items-center mb-8">
+          <img 
+            src="/crs-logo.svg" 
+            alt="CRS Logo" 
+            class="h-20 mb-4 object-contain"
+            onError={(e) => {
+              // Fallback: show text if logo doesn't load
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+          <h1 class="text-xl font-bold text-blue-900 text-center mb-2">ระบบจัดการบริหารร้าน</h1>
+          <h2 class="text-lg font-semibold text-blue-700 text-center">CRS Creative</h2>
+        </div>
+
+        <div class="border-b-2 border-blue-200 mb-6"></div>
+
+        <h3 class="text-lg font-bold mb-6 text-center text-blue-800">เข้าสู่ระบบ</h3>
 
         <form onSubmit={handleSubmit} class="space-y-4">
           <Input
