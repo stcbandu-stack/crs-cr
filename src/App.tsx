@@ -3,7 +3,7 @@ import { Router, Route, Navigate, useNavigate } from '@solidjs/router';
 import { authState, initializeAuth, logout, isAuthenticated, userDisplayName, updateDisplayName } from '@/store/auth';
 import { showToast } from '@/store/ui';
 import { Toast, ConfirmModal, DeviceLimitModal, Button } from '@/components';
-import { Login, Dashboard, Order, History, JobDetail, Inventory, InventoryLogs, Customers, Services } from '@/routes';
+import { Login, Dashboard, Order, History, JobDetail, Inventory, InventoryLogs, InventoryDashboard, InventoryReport, Customers, Services } from '@/routes';
 
 // Layout Component with Nav
 const Layout: Component<{ children?: any }> = (props) => {
@@ -99,6 +99,8 @@ const App: Component = () => {
         <Route path="/history/:id" component={() => <ProtectedRoute component={JobDetail} />} />
         <Route path="/inventory" component={() => <ProtectedRoute component={Inventory} />} />
         <Route path="/inventory/logs" component={() => <ProtectedRoute component={InventoryLogs} />} />
+        <Route path="/inventory/dashboard" component={() => <ProtectedRoute component={InventoryDashboard} />} />
+        <Route path="/inventory/report" component={() => <ProtectedRoute component={InventoryReport} />} />
         <Route path="/customers" component={() => <ProtectedRoute component={Customers} />} />
         <Route path="/services" component={() => <ProtectedRoute component={Services} />} />
         <Route path="*" component={() => <Navigate href="/" />} />

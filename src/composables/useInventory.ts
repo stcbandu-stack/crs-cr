@@ -177,7 +177,7 @@ const fetchLogs = async (): Promise<void> => {
     const { data, error } = await supabase
       .from('material_logs')
       .select('*')
-      .order('action_date', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1000);
     if (error) throw error;
     setState('logs', data || []);

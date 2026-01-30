@@ -98,6 +98,20 @@ const Inventory: Component = () => {
               📜 ประวัติ
             </button>
 
+            <button
+              onClick={() => navigate('/inventory/dashboard')}
+              class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+            >
+              📊 Dashboard
+            </button>
+
+            <button
+              onClick={() => navigate('/inventory/report')}
+              class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            >
+              📋 รายงานวัสดุ
+            </button>
+
             <Button onClick={() => inventory.openMaterialModal('add')}>+ เพิ่มวัสดุ</Button>
           </div>
         </div>
@@ -203,12 +217,12 @@ const Inventory: Component = () => {
               <For each={inventory.sortedMaterials()}>
                 {(mat) => (
                   <tr
-                    class={`border-b hover:bg-gray-50 ${
+                    class={`border-b transition-colors ${
                       mat.remaining_qty === 0
-                        ? 'bg-red-100'
+                        ? 'bg-red-100 hover:bg-red-200'
                         : mat.remaining_qty <= mat.min_alert
-                        ? 'bg-yellow-100'
-                        : ''
+                        ? 'bg-yellow-100 hover:bg-yellow-200'
+                        : 'hover:bg-gray-50'
                     }`}
                   >
                     <td class="p-3 font-medium">{mat.name}</td>

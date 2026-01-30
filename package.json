@@ -12,6 +12,8 @@
   "dependencies": {
     "@solidjs/router": "^0.14.0",
     "@supabase/supabase-js": "^2.45.0",
+    "apexcharts": "^5.3.6",
+    "solid-apexcharts": "^0.6.0",
     "solid-js": "^1.8.0"
   },
   "devDependencies": {
