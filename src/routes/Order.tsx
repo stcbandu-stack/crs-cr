@@ -131,19 +131,20 @@ const Order: Component = () => {
                         <select
                           class="w-full p-1 border"
                           onChange={(e) => {
-                            const service = services().find((s) => s.id === e.currentTarget.value);
-                            if (service) {
-                              order.updateItemField(idx(), 'service', service);
-                              order.updatePrice(idx());
-                            } else if (e.currentTarget.value === 'other') {
-                              order.updateItemField(idx(), 'service', { service_name: 'อื่นๆ', unit_price: 0 });
-                              order.updatePrice(idx());
+                            const selectedValue = e.currentTarget.value;
+                            if (selectedValue === 'other') {
+                              order.setItemService(idx(), { service_name: 'อื่นๆ', unit_price: 0 });
+                            } else {
+                              const service = services().find((s) => String(s.id) === selectedValue);
+                              if (service) {
+                                order.setItemService(idx(), service);
+                              }
                             }
                           }}
                         >
                           <For each={services()}>
                             {(s) => (
-                              <option
+                              <option 
                                 value={s.id}
                                 selected={(item.service as Service).id === s.id}
                               >
@@ -151,7 +152,7 @@ const Order: Component = () => {
                               </option>
                             )}
                           </For>
-                          <option value="other">อื่นๆ</option>
+                          <option value="other" selected={item.service.service_name === 'อื่นๆ'}>อื่นๆ</option>
                         </select>
                         <Show when={item.service.service_name === 'อื่นๆ'}>
                           <input

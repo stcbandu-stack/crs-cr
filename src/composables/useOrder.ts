@@ -123,18 +123,60 @@ const updateItemField = (index: number, field: keyof OrderItem, value: unknown):
   setState('form', 'items', index, field as keyof OrderItem, value as never);
 };
 
+// ฟังก์ชันใหม่สำหรับเปลี่ยน service และคำนวณราคาใหม่ในครั้งเดียว
+const setItemService = (index: number, service: Service | { service_name: string; unit_price: number }): void => {
+  const currentItem = state.form.items[index];
+  const basePrice = service.service_name === 'อื่นๆ' ? 0 : service.unit_price || 0;
+  
+  // คำนวณราคาจาก service ใหม่
+  const wm = currentItem.unit === 'cm' ? currentItem.w / 100 : currentItem.w;
+  const hm = currentItem.unit === 'cm' ? currentItem.h / 100 : currentItem.h;
+  const area = wm * hm;
+
+  let price = 0;
+  if (service.service_name === 'อื่นๆ') {
+    price = currentItem.price;
+  } else if (area > 0) {
+    price = Math.ceil(area * basePrice);
+  } else {
+    price = basePrice;
+  }
+
+  // อัพเดตทุกค่าพร้อมกัน
+  setState('form', 'items', index, {
+    ...currentItem,
+    service: service,
+    base_price: basePrice,
+    price: price,
+    total: price * currentItem.qty
+  });
+};
+
 const updatePrice = (index: number): void => {
   const item = state.form.items[index];
   const service = item.service as Service;
   const basePrice = service.service_name === 'อื่นๆ' ? 0 : service.unit_price || 0;
 
+  // อัพเดต base_price จาก service ที่เลือก
   setState('form', 'items', index, 'base_price', basePrice);
 
+  // คำนวณราคาใหม่ทันที
+  const currentItem = state.form.items[index];
+  const wm = currentItem.unit === 'cm' ? currentItem.w / 100 : currentItem.w;
+  const hm = currentItem.unit === 'cm' ? currentItem.h / 100 : currentItem.h;
+  const area = wm * hm;
+
+  let price = 0;
   if (service.service_name === 'อื่นๆ') {
-    setState('form', 'items', index, 'price', 0);
+    price = currentItem.price; // ใช้ราคาที่กรอกเอง
+  } else if (area > 0) {
+    price = Math.ceil(area * basePrice);
+  } else {
+    price = basePrice; // ยังไม่ได้กรอกขนาด ใช้ราคาต่อหน่วยเป็นค่าเริ่มต้น
   }
 
-  calcRow(index, 'size');
+  setState('form', 'items', index, 'price', price);
+  setState('form', 'items', index, 'total', price * currentItem.qty);
 };
 
 const calcRow = (index: number, _type: 'size' | 'qty' | 'manual'): void => {
@@ -143,7 +185,18 @@ const calcRow = (index: number, _type: 'size' | 'qty' | 'manual'): void => {
   const hm = item.unit === 'cm' ? item.h / 100 : item.h;
   const area = wm * hm;
 
-  const price = area > 0 && item.base_price > 0 ? Math.ceil(area * item.base_price) : Math.ceil(item.base_price);
+  // คำนวณราคาใหม่เสมอเมื่อมี base_price
+  let price = item.price;
+  if (area > 0 && item.base_price > 0) {
+    price = Math.ceil(area * item.base_price);
+  } else if (area > 0 && item.base_price === 0) {
+    // กรณี "อื่นๆ" ที่ base_price = 0 ให้ใช้ราคาที่กรอกเอง
+    price = item.price;
+  } else {
+    // ไม่มีพื้นที่ แต่มี base_price ให้ใช้ base_price เป็นราคาตั้งต้น
+    price = item.base_price > 0 ? Math.ceil(item.base_price) : item.price;
+  }
+  
   const total = price * item.qty;
 
   setState('form', 'items', index, 'price', price);
@@ -340,6 +393,7 @@ export const useOrder = () => ({
   addItem,
   removeItem,
   updateItemField,
+  setItemService,
   updatePrice,
   calcRow,
 
