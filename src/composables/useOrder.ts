@@ -452,7 +452,6 @@ const updateJob = async (): Promise<boolean> => {
         event_date: state.form.eventDate,
         items: state.form.items,
         total_price: grandTotal(),
-        updated_at: new Date().toISOString(),
       };
 
       const { error } = await supabase

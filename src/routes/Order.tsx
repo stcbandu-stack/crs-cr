@@ -85,8 +85,9 @@ const Order: Component = () => {
                 <label class="block text-sm font-bold">เลือกองค์กร</label>
                 <select
                   class="w-full border p-2 rounded"
+                  value={order.state.form.selectedCustomer?.id || ''}
                   onChange={(e) => {
-                    const customer = customers().find((c) => c.id === e.currentTarget.value);
+                    const customer = customers().find((c) => String(c.id) === e.currentTarget.value);
                     if (customer) order.fillCustomerInfo(customer);
                   }}
                 >
