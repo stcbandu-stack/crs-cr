@@ -1,4 +1,4 @@
-import { Component, For, onMount } from 'solid-js';
+import { Component, For, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useInventory } from '@/composables/useInventory';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -62,8 +62,66 @@ const InventoryLogs: Component = () => {
       </div>
 
       {/* Table */}
-      <div class="bg-white rounded shadow overflow-x-auto">
-        <table class="w-full text-sm min-w-[800px]">
+      <div class="bg-white rounded shadow overflow-hidden">
+        {/* Top Pagination */}
+        <Show when={inventory.filteredLogs().length > 0}>
+          <div class="bg-gray-50 border-b p-4 flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div class="text-xs text-gray-600">
+                แสดงหน้า <span class="font-bold">{inventory.state.currentLogPage}</span> จาก{' '}
+                <span class="font-bold">{inventory.totalLogPages()}</span> (ทั้งหมด{' '}
+                <span class="font-bold">{inventory.filteredLogs().length}</span> รายการ)
+              </div>
+            </div>
+
+            {/* Arrow Buttons + Page Numbers */}
+            <div class="flex flex-wrap items-center justify-center gap-1">
+              {/* Previous Button */}
+              <button
+                onClick={() => inventory.changeLogPage(inventory.state.currentLogPage - 1)}
+                disabled={inventory.state.currentLogPage === 1}
+                class="px-3 py-2 rounded border bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+                title="ก่อนหน้า"
+              >
+                ← ก่อนหน้า
+              </button>
+
+              {/* Page Numbers */}
+              <div class="flex flex-wrap items-center gap-1">
+                <For each={inventory.getLogPageNumbers()}>
+                  {(page) => (
+                    <button
+                      onClick={() => typeof page === 'number' && inventory.changeLogPage(page)}
+                      disabled={typeof page === 'string'}
+                      class={`px-2.5 py-2 rounded border transition text-sm font-medium min-w-[40px] text-center ${
+                        page === inventory.state.currentLogPage
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : typeof page === 'string'
+                            ? 'bg-gray-100 text-gray-400 cursor-default'
+                            : 'bg-white hover:bg-blue-50 border-gray-300'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )}
+                </For>
+              </div>
+
+              {/* Next Button */}
+              <button
+                onClick={() => inventory.changeLogPage(inventory.state.currentLogPage + 1)}
+                disabled={inventory.state.currentLogPage === inventory.totalLogPages()}
+                class="px-3 py-2 rounded border bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+                title="ถัดไป"
+              >
+                ถัดไป →
+              </button>
+            </div>
+          </div>
+        </Show>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm min-w-[800px]">
           <thead class="bg-gray-100">
             <tr>
               <th class="p-3 text-left">วันที่</th>
@@ -113,45 +171,64 @@ const InventoryLogs: Component = () => {
             </For>
           </tbody>
         </table>
-      </div>
-
-      {/* Pagination */}
-      <div class="bg-white border-t p-3 flex flex-col sm:flex-row justify-between items-center gap-4 mt-0 rounded-b shadow">
-        <div class="text-xs text-gray-500">
-          แสดงหน้า {inventory.state.currentLogPage} จาก {inventory.totalLogPages()} (ทั้งหมด{' '}
-          {inventory.filteredLogs().length} รายการ)
         </div>
 
-        <div class="flex items-center gap-2">
-          <button
-            onClick={() => inventory.changeLogPage(inventory.state.currentLogPage - 1)}
-            disabled={inventory.state.currentLogPage === 1}
-            class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            ← ก่อนหน้า
-          </button>
+        {/* Bottom Pagination */}
+        <Show when={inventory.filteredLogs().length > 0}>
+          <div class="bg-gray-50 border-t p-4 flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div class="text-xs text-gray-600">
+                แสดงหน้า <span class="font-bold">{inventory.state.currentLogPage}</span> จาก{' '}
+                <span class="font-bold">{inventory.totalLogPages()}</span> (ทั้งหมด{' '}
+                <span class="font-bold">{inventory.filteredLogs().length}</span> รายการ)
+              </div>
+            </div>
 
-          <div class="flex items-center gap-1">
-            <span>หน้า</span>
-            <input
-              type="number"
-              min="1"
-              max={inventory.totalLogPages()}
-              value={inventory.state.currentLogPage}
-              onChange={(e) => inventory.changeLogPage(parseInt(e.currentTarget.value) || 1)}
-              class="w-12 text-center border rounded p-1 text-sm focus:ring-2 focus:ring-blue-300 outline-none"
-            />
-            <span>/ {inventory.totalLogPages()}</span>
+            {/* Arrow Buttons + Page Numbers */}
+            <div class="flex flex-wrap items-center justify-center gap-1">
+              {/* Previous Button */}
+              <button
+                onClick={() => inventory.changeLogPage(inventory.state.currentLogPage - 1)}
+                disabled={inventory.state.currentLogPage === 1}
+                class="px-3 py-2 rounded border bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+                title="ก่อนหน้า"
+              >
+                ← ก่อนหน้า
+              </button>
+
+              {/* Page Numbers */}
+              <div class="flex flex-wrap items-center gap-1">
+                <For each={inventory.getLogPageNumbers()}>
+                  {(page) => (
+                    <button
+                      onClick={() => typeof page === 'number' && inventory.changeLogPage(page)}
+                      disabled={typeof page === 'string'}
+                      class={`px-2.5 py-2 rounded border transition text-sm font-medium min-w-[40px] text-center ${
+                        page === inventory.state.currentLogPage
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : typeof page === 'string'
+                            ? 'bg-gray-100 text-gray-400 cursor-default'
+                            : 'bg-white hover:bg-blue-50 border-gray-300'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )}
+                </For>
+              </div>
+
+              {/* Next Button */}
+              <button
+                onClick={() => inventory.changeLogPage(inventory.state.currentLogPage + 1)}
+                disabled={inventory.state.currentLogPage === inventory.totalLogPages()}
+                class="px-3 py-2 rounded border bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+                title="ถัดไป"
+              >
+                ถัดไป →
+              </button>
+            </div>
           </div>
-
-          <button
-            onClick={() => inventory.changeLogPage(inventory.state.currentLogPage + 1)}
-            disabled={inventory.state.currentLogPage === inventory.totalLogPages()}
-            class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            ถัดไป →
-          </button>
-        </div>
+        </Show>
       </div>
     </div>
   );

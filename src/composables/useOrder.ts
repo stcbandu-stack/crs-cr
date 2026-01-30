@@ -73,6 +73,55 @@ const paginatedHistory = createMemo(() => {
   return filteredHistory().slice(start, start + CONFIG.ITEMS_PER_PAGE);
 });
 
+// Generate page numbers with ellipsis
+const getPageNumbers = createMemo(() => {
+  const pages: (number | string)[] = [];
+  const total = totalPages();
+  const current = state.currentPage;
+  const maxPagesToShow = 5; // Maximum page buttons to show at once
+  
+  if (total <= maxPagesToShow) {
+    // Show all pages if less than or equal to maxPagesToShow
+    for (let i = 1; i <= total; i++) {
+      pages.push(i);
+    }
+  } else {
+    // Always show first page
+    pages.push(1);
+    
+    // Calculate range around current page
+    let start = Math.max(2, current - 1);
+    let end = Math.min(total - 1, current + 1);
+    
+    // Adjust range if near edges
+    if (current <= 2) {
+      end = maxPagesToShow - 1;
+    } else if (current >= total - 1) {
+      start = total - (maxPagesToShow - 2);
+    }
+    
+    // Add ellipsis before range if needed
+    if (start > 2) {
+      pages.push('...');
+    }
+    
+    // Add range
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    
+    // Add ellipsis after range if needed
+    if (end < total - 1) {
+      pages.push('...');
+    }
+    
+    // Always show last page if more than 1 page
+    pages.push(total);
+  }
+  
+  return pages;
+});
+
 // Reset pagination when filters change
 createEffect(() => {
   state.searchQuery;
@@ -385,6 +434,7 @@ export const useOrder = () => ({
   filteredHistory,
   totalPages,
   paginatedHistory,
+  getPageNumbers,
 
   // Constants
   statusOptions: STATUS_OPTIONS,

@@ -76,6 +76,63 @@ const History: Component = () => {
 
       {/* Table */}
       <div class="bg-white rounded shadow overflow-hidden">
+        {/* Top Pagination */}
+        <Show when={order.filteredHistory().length > 0}>
+          <div class="bg-gray-50 border-b p-4 flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div class="text-xs text-gray-600">
+                แสดงหน้า <span class="font-bold">{order.state.currentPage}</span> จาก{' '}
+                <span class="font-bold">{order.totalPages()}</span> (ทั้งหมด{' '}
+                <span class="font-bold">{order.filteredHistory().length}</span> รายการ)
+              </div>
+            </div>
+
+            {/* Arrow Buttons + Page Numbers */}
+            <div class="flex flex-wrap items-center justify-center gap-1">
+              {/* Previous Button */}
+              <button
+                onClick={() => order.changePage(order.state.currentPage - 1)}
+                disabled={order.state.currentPage === 1}
+                class="px-3 py-2 rounded border bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+                title="ก่อนหน้า"
+              >
+                ← ก่อนหน้า
+              </button>
+
+              {/* Page Numbers */}
+              <div class="flex flex-wrap items-center gap-1">
+                <For each={order.getPageNumbers()}>
+                  {(page) => (
+                    <button
+                      onClick={() => typeof page === 'number' && order.changePage(page)}
+                      disabled={typeof page === 'string'}
+                      class={`px-2.5 py-2 rounded border transition text-sm font-medium min-w-[40px] text-center ${
+                        page === order.state.currentPage
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : typeof page === 'string'
+                            ? 'bg-gray-100 text-gray-400 cursor-default'
+                            : 'bg-white hover:bg-blue-50 border-gray-300'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )}
+                </For>
+              </div>
+
+              {/* Next Button */}
+              <button
+                onClick={() => order.changePage(order.state.currentPage + 1)}
+                disabled={order.state.currentPage === order.totalPages()}
+                class="px-3 py-2 rounded border bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+                title="ถัดไป"
+              >
+                ถัดไป →
+              </button>
+            </div>
+          </div>
+        </Show>
+
         <div class="overflow-x-auto">
           <table class="w-full text-sm min-w-[800px]">
             <thead>
@@ -151,40 +208,56 @@ const History: Component = () => {
           </table>
         </div>
 
-        {/* Pagination */}
-        <Show when={order.totalPages() > 1}>
-          <div class="bg-gray-50 border-t p-3 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="text-xs text-gray-500 text-center sm:text-left">
-              แสดงหน้า {order.state.currentPage} จาก {order.totalPages()} (ทั้งหมด{' '}
-              {order.filteredHistory().length} รายการ)
+        {/* Pagination - Show if there are items */}
+        <Show when={order.filteredHistory().length > 0}>
+          <div class="bg-gray-50 border-t p-4 flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div class="text-xs text-gray-600">
+                แสดงหน้า <span class="font-bold">{order.state.currentPage}</span> จาก{' '}
+                <span class="font-bold">{order.totalPages()}</span> (ทั้งหมด{' '}
+                <span class="font-bold">{order.filteredHistory().length}</span> รายการ)
+              </div>
             </div>
 
-            <div class="flex items-center gap-2">
+            {/* Arrow Buttons + Page Numbers */}
+            <div class="flex flex-wrap items-center justify-center gap-1">
+              {/* Previous Button */}
               <button
                 onClick={() => order.changePage(order.state.currentPage - 1)}
                 disabled={order.state.currentPage === 1}
-                class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-3 py-2 rounded border bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+                title="กำนหน้า"
               >
                 ← ก่อนหน้า
               </button>
 
-              <div class="flex items-center gap-1">
-                <span>หน้า</span>
-                <input
-                  type="number"
-                  min="1"
-                  max={order.totalPages()}
-                  value={order.state.currentPage}
-                  onChange={(e) => order.changePage(parseInt(e.currentTarget.value) || 1)}
-                  class="w-12 text-center border rounded p-1 text-sm focus:ring-2 focus:ring-blue-300 outline-none"
-                />
-                <span>/ {order.totalPages()}</span>
+              {/* Page Numbers */}
+              <div class="flex flex-wrap items-center gap-1">
+                <For each={order.getPageNumbers()}>
+                  {(page) => (
+                    <button
+                      onClick={() => typeof page === 'number' && order.changePage(page)}
+                      disabled={typeof page === 'string'}
+                      class={`px-2.5 py-2 rounded border transition text-sm font-medium min-w-[40px] text-center ${
+                        page === order.state.currentPage
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : typeof page === 'string'
+                            ? 'bg-gray-100 text-gray-400 cursor-default'
+                            : 'bg-white hover:bg-blue-50 border-gray-300'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )}
+                </For>
               </div>
 
+              {/* Next Button */}
               <button
                 onClick={() => order.changePage(order.state.currentPage + 1)}
                 disabled={order.state.currentPage === order.totalPages()}
-                class="px-3 py-1 rounded border bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-3 py-2 rounded border bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+                title="ถัดไป"
               >
                 ถัดไป →
               </button>

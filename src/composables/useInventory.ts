@@ -150,6 +150,37 @@ const paginatedLogs = createMemo(() => {
   return filteredLogs().slice(start, start + CONFIG.LOGS_PER_PAGE);
 });
 
+// Generate page numbers with ellipsis
+const getLogPageNumbers = createMemo(() => {
+  const pages: (number | string)[] = [];
+  const total = totalLogPages();
+  const current = state.currentLogPage;
+  const maxPagesToShow = 5;
+
+  if (total <= maxPagesToShow) {
+    for (let i = 1; i <= total; i++) {
+      pages.push(i);
+    }
+  } else {
+    pages.push(1);
+    let start = Math.max(2, current - 1);
+    let end = Math.min(total - 1, current + 1);
+
+    if (current <= 2) {
+      end = maxPagesToShow - 1;
+    } else if (current >= total - 1) {
+      start = total - (maxPagesToShow - 2);
+    }
+
+    if (start > 2) pages.push('...');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push('...');
+    
+    pages.push(total);
+  }
+  return pages;
+});
+
 // Reset pagination when filters change
 createEffect(() => {
   // Track these dependencies
@@ -470,8 +501,9 @@ export const useInventory = () => ({
   totalInValue,
   totalOutValue,
   filteredLogs,
-  totalLogPages,
   paginatedLogs,
+  totalLogPages,
+  getLogPageNumbers,
 
   // Constants
   materialCategories: MATERIAL_CATEGORIES,

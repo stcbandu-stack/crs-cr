@@ -153,7 +153,7 @@ export const MATERIAL_TYPES = [
 ] as const;
 
 export const CONFIG = {
-  ITEMS_PER_PAGE: 25,
+  ITEMS_PER_PAGE: 50,
   SESSION_CHECK_INTERVAL: 60000,
   TOAST_DURATION: 3000,
   MAX_DEVICES: 2,

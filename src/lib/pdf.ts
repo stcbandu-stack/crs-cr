@@ -19,9 +19,17 @@ export const generateJobPdf = async (job: JobOrder) => {
         const serviceName = typeof item.service === 'string' 
             ? item.service 
             : (item.service.service_name || item.customName || '-');
+            
+        const noteHtml = item.note 
+            ? `<div style="font-size:12px; color:#555; font-style:italic; margin-top:2px;">* ${item.note}</div>` 
+            : '';
+
         return `
             <tr>
-                <td style="padding:8px;border-bottom:1px solid #ddd;">${serviceName}</td>
+                <td style="padding:8px;border-bottom:1px solid #ddd;">
+                    <div style="font-weight:bold;">${serviceName}</div>
+                    ${noteHtml}
+                </td>
                 <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.w} x ${item.h} ${item.unit}</td>
                 <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.qty}</td>
                 <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${item.price.toLocaleString()}</td>
