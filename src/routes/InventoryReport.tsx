@@ -81,8 +81,6 @@ const InventoryReport: Component = () => {
                   <thead>
                     <tr class="bg-gray-200">
                       <th class="border border-gray-300 px-4 py-2 text-left">ชื่อวัสดุ</th>
-                      <th class="border border-gray-300 px-4 py-2 text-center">รับเข้า</th>
-                      <th class="border border-gray-300 px-4 py-2 text-center">เบิกออก</th>
                       <th class="border border-gray-300 px-4 py-2 text-center">คงเหลือ</th>
                       <th class="border border-gray-300 px-4 py-2 text-center">สถานะ</th>
                     </tr>
@@ -92,12 +90,6 @@ const InventoryReport: Component = () => {
                       {(mat) => (
                         <tr>
                           <td class="border border-gray-300 px-4 py-2">{mat.name}</td>
-                          <td class="border border-gray-300 px-4 py-2 text-center">
-                            {(mat.total_in || 0).toFixed(2)} {mat.unit}
-                          </td>
-                          <td class="border border-gray-300 px-4 py-2 text-center">
-                            {(mat.total_out || 0).toFixed(2)} {mat.unit}
-                          </td>
                           <td class="border border-gray-300 px-4 py-2 text-center font-bold">
                             {mat.remaining_qty.toFixed(2)} {mat.unit}
                           </td>
