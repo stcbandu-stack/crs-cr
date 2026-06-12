@@ -63,6 +63,21 @@ Deno.serve(async (req) => {
       const body = await req.json();
       const sources = (body.events ?? []).map((e: { source?: unknown }) => e.source);
       console.log('LINE webhook sources:', JSON.stringify(sources));
+
+      // Best-effort persist so the group ID can also be read with a SQL query
+      const sbUrl = Deno.env.get('SUPABASE_URL');
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      if (sbUrl && serviceKey && sources.length) {
+        await fetch(`${sbUrl}/rest/v1/line_webhook_sources`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify(sources.map((source: unknown) => ({ source }))),
+        });
+      }
     } catch (_) {
       // LINE's verify request has no JSON body
     }
