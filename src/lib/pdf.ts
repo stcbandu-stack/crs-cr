@@ -38,6 +38,24 @@ export const generateJobPdf = async (job: JobOrder) => {
         `;
     }).join('');
 
+    // 2.5 Build attached images section: pages of 6 fixed blocks (2 cols x 3 rows)
+    const IMAGES_PER_PAGE = 6;
+    const imageGroups: string[][] = [];
+    for (let i = 0; i < (job.images?.length || 0); i += IMAGES_PER_PAGE) {
+        imageGroups.push(job.images!.slice(i, i + IMAGES_PER_PAGE));
+    }
+
+    const imagesHtml = imageGroups.map((group, gi) => `
+    <div class="images-page">
+        <div class="images-title">รูปประกอบงาน${imageGroups.length > 1 ? ` (ชุดที่ ${gi + 1}/${imageGroups.length})` : ''} — ${job.job_id}</div>
+        <div class="images-grid">
+            ${group.map(url => `
+            <div class="image-box">
+                <img src="${url}" alt="รูปประกอบงาน" onerror="this.parentElement.style.display='none'">
+            </div>`).join('')}
+        </div>
+    </div>`).join('');
+
     // 3. Build HTML
     const html = `
 <!DOCTYPE html>
@@ -62,6 +80,11 @@ export const generateJobPdf = async (job: JobOrder) => {
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         th { background: #f0f0f0; padding: 10px 8px; text-align: left; border-bottom: 2px solid #333; }
         .total-row td { font-weight: bold; border-top: 2px solid #333; }
+        .images-page { page-break-before: always; padding-top: 5px; }
+        .images-title { font-weight: bold; border-bottom: 2px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; }
+        .images-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .image-box { width: calc(50% - 4px); height: 78mm; border: 1px solid #ddd; border-radius: 4px; padding: 4px; display: flex; align-items: center; justify-content: center; page-break-inside: avoid; }
+        .image-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .signatures { display: flex; justify-content: space-around; margin-top: 50px; }
         .sig-box { text-align: center; }
         .sig-line { width: 200px; border-bottom: 1px solid #000; margin-bottom: 5px; height: 40px; }
@@ -112,6 +135,7 @@ export const generateJobPdf = async (job: JobOrder) => {
             </tr>
         </tbody>
     </table>
+    ${imagesHtml}
     <div class="signatures">
         <div class="sig-box">
             <div class="sig-line"></div>

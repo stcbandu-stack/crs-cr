@@ -412,6 +412,74 @@ const updateJobStatus = async (jobId: string, newStatus: JobStatus): Promise<boo
   });
 };
 
+// ============ Job Images ============
+
+const JOB_IMAGE_BUCKET = 'job-images';
+
+const uploadJobImages = async (job: JobOrder, files: File[]): Promise<string[] | null> => {
+  const urls: string[] = [];
+
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) {
+      showToast(`"${file.name}" ไม่ใช่ไฟล์รูปภาพ`, 'error');
+      return null;
+    }
+
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `${job.job_id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage.from(JOB_IMAGE_BUCKET).upload(path, file);
+    if (error) {
+      showToast(`อัปโหลดไม่สำเร็จ: ${error.message}`, 'error');
+      return null;
+    }
+
+    const { data } = supabase.storage.from(JOB_IMAGE_BUCKET).getPublicUrl(path);
+    urls.push(data.publicUrl);
+  }
+
+  const newImages = [...(job.images || []), ...urls];
+  const { error } = await supabase
+    .from('job_orders')
+    .update({ images: newImages })
+    .eq('job_id', job.job_id);
+
+  if (error) {
+    showToast(error.message, 'error');
+    return null;
+  }
+
+  showToast(`แนบรูปแล้ว ${urls.length} รูป`);
+  await fetchHistory();
+  return newImages;
+};
+
+const removeJobImage = async (job: JobOrder, url: string): Promise<string[] | null> => {
+  const newImages = (job.images || []).filter((u) => u !== url);
+
+  const { error } = await supabase
+    .from('job_orders')
+    .update({ images: newImages })
+    .eq('job_id', job.job_id);
+
+  if (error) {
+    showToast(error.message, 'error');
+    return null;
+  }
+
+  // Best-effort: remove the file from storage as well
+  const marker = `/object/public/${JOB_IMAGE_BUCKET}/`;
+  const idx = url.indexOf(marker);
+  if (idx !== -1) {
+    const path = decodeURIComponent(url.slice(idx + marker.length));
+    await supabase.storage.from(JOB_IMAGE_BUCKET).remove([path]);
+  }
+
+  showToast('ลบรูปแล้ว');
+  await fetchHistory();
+  return newImages;
+};
+
 // ============ Edit Job Actions (Admin Only) ============
 
 const editJob = (job: JobOrder): void => {
@@ -526,6 +594,8 @@ export const useOrder = () => ({
   viewJob,
   printJob,
   updateJobStatus,
+  uploadJobImages,
+  removeJobImage,
 
   // Edit Actions (Admin Only)
   editJob,

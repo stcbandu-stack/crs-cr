@@ -2,6 +2,7 @@ import { Component, For, Show, createSignal, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useOrder } from '@/composables/useOrder';
 import { can, isAdmin } from '@/store/auth';
+import { openConfirm } from '@/store/ui';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { generateJobPdf } from '@/lib/pdf';
 import { Button, Input, Modal } from '@/components';
@@ -15,6 +16,12 @@ const History: Component = () => {
   const [statusModalOpen, setStatusModalOpen] = createSignal(false);
   const [selectedJob, setSelectedJob] = createSignal<JobOrder | null>(null);
   const [selectedStatus, setSelectedStatus] = createSignal<JobStatus>('waiting_approval');
+
+  // Image Modal
+  const [imageModalOpen, setImageModalOpen] = createSignal(false);
+  const [imageJob, setImageJob] = createSignal<JobOrder | null>(null);
+  const [uploading, setUploading] = createSignal(false);
+  let fileInputRef: HTMLInputElement | undefined;
 
   onMount(() => {
     order.fetchHistory();
@@ -32,6 +39,37 @@ const History: Component = () => {
       await order.updateJobStatus(job.job_id, selectedStatus());
       setStatusModalOpen(false);
     }
+  };
+
+  const openImageModal = (job: JobOrder) => {
+    setImageJob(job);
+    setImageModalOpen(true);
+  };
+
+  const handleFilesSelected = async (e: Event) => {
+    const input = e.currentTarget as HTMLInputElement;
+    const job = imageJob();
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if (!job || files.length === 0) return;
+
+    setUploading(true);
+    const newImages = await order.uploadJobImages(job, files);
+    setUploading(false);
+    if (newImages) {
+      setImageJob({ ...job, images: newImages });
+    }
+  };
+
+  const handleRemoveImage = (url: string) => {
+    openConfirm('ลบรูปนี้?', async () => {
+      const job = imageJob();
+      if (!job) return;
+      const newImages = await order.removeJobImage(job, url);
+      if (newImages) {
+        setImageJob({ ...job, images: newImages });
+      }
+    });
   };
 
   return (
@@ -183,6 +221,17 @@ const History: Component = () => {
                         >
                           🖨️ PDF
                         </button>
+                        <button
+                          onClick={() => openImageModal(job)}
+                          class="bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 px-3 py-1 rounded text-xs transition flex items-center gap-1"
+                        >
+                          🖼️ รูป
+                          <Show when={(job.images?.length || 0) > 0}>
+                            <span class="bg-purple-600 text-white rounded-full px-1.5 text-[10px] leading-4">
+                              {job.images!.length}
+                            </span>
+                          </Show>
+                        </button>
                         <Show when={isAdmin()}>
                           <button
                             onClick={() => {
@@ -295,6 +344,65 @@ const History: Component = () => {
               ยกเลิก
             </Button>
             <Button onClick={saveStatus}>บันทึก</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Image Modal */}
+      <Modal
+        isOpen={imageModalOpen()}
+        onClose={() => setImageModalOpen(false)}
+        title={`🖼️ รูปประกอบงาน ${imageJob()?.job_id || ''}`}
+        size="lg"
+      >
+        <div class="space-y-4">
+          <Show
+            when={(imageJob()?.images?.length || 0) > 0}
+            fallback={
+              <div class="p-8 text-center text-gray-400 border-2 border-dashed rounded">
+                ยังไม่มีรูปแนบ — รูปที่แนบจะติดไปกับหน้า "ดู" และตอนปริ้น PDF
+              </div>
+            }
+          >
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <For each={imageJob()?.images}>
+                {(url) => (
+                  <div class="relative group border rounded overflow-hidden bg-gray-50">
+                    <a href={url} target="_blank" rel="noopener">
+                      <img src={url} class="w-full h-32 object-cover" alt="รูปประกอบงาน" />
+                    </a>
+                    <button
+                      onClick={() => handleRemoveImage(url)}
+                      class="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100 transition"
+                      title="ลบรูป"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            class="hidden"
+            onChange={handleFilesSelected}
+          />
+
+          <div class="flex justify-between items-center">
+            <Button
+              onClick={() => fileInputRef?.click()}
+              disabled={uploading()}
+            >
+              {uploading() ? '⏳ กำลังอัปโหลด...' : '➕ แนบรูป'}
+            </Button>
+            <Button variant="secondary" onClick={() => setImageModalOpen(false)}>
+              ปิด
+            </Button>
           </div>
         </div>
       </Modal>

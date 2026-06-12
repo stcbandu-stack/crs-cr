@@ -7,6 +7,16 @@ import { Button } from '@/components';
 import { isAdmin } from '@/store/auth';
 import { useOrder } from '@/composables/useOrder';
 
+const IMAGES_PER_PAGE = 6;
+
+const chunkImages = (images?: string[]): string[][] => {
+  const chunks: string[][] = [];
+  for (let i = 0; i < (images?.length || 0); i += IMAGES_PER_PAGE) {
+    chunks.push(images!.slice(i, i + IMAGES_PER_PAGE));
+  }
+  return chunks;
+};
+
 const JobDetail: Component = () => {
   const params = useParams();
   const navigate = useNavigate();
@@ -154,6 +164,30 @@ const JobDetail: Component = () => {
                   </tfoot>
                 </table>
               </div>
+
+              {/* Attached Images: pages of 6 fixed blocks (2 cols x 3 rows) */}
+              <For each={chunkImages(j.images)}>
+                {(group, gi) => (
+                  <div class="mb-8 print:break-before-page">
+                    <h3 class="font-bold text-gray-700 border-b-2 border-gray-300 pb-2 mb-4">
+                      🖼️ รูปประกอบงาน
+                      {chunkImages(j.images).length > 1
+                        ? ` (ชุดที่ ${gi() + 1}/${chunkImages(j.images).length})`
+                        : ''}{' '}
+                      — {j.job_id}
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
+                      <For each={group}>
+                        {(url) => (
+                          <div class="border rounded p-1 bg-gray-50 flex items-center justify-center h-64 print:h-[78mm] print:break-inside-avoid">
+                            <img src={url} class="max-w-full max-h-full object-contain" alt="รูปประกอบงาน" />
+                          </div>
+                        )}
+                      </For>
+                    </div>
+                  </div>
+                )}
+              </For>
 
               {/* Signatures */}
               <div class="mt-16 flex justify-around print:mt-24 print:break-inside-avoid">

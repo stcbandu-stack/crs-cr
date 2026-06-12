@@ -66,6 +66,7 @@ export interface JobOrder {
   total_price: number;
   created_by: string;
   status: JobStatus;
+  images?: string[];
   created_at?: string;
   updated_at?: string;
 }
