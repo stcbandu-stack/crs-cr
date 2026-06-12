@@ -28,3 +28,4 @@ Thumbs.db
 
 # Ignore the features summary file
 FEATURES_SUMMARY.md
+.mcp.json
