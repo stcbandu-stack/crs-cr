@@ -160,6 +160,7 @@ export const CONFIG = {
   MAX_DEVICES: 2,
   DEVICE_ID_KEY: 'device_id',
   LOGS_PER_PAGE: 50,
+  MAX_ORDER_ITEMS: 30,
   DEFAULT_UNIT: 'ชิ้น',
   ROLL_UNIT: 'ตร.ม.',
 };
