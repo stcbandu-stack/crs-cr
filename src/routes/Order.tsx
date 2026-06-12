@@ -3,8 +3,10 @@ import { useNavigate } from '@solidjs/router';
 import { authState, isAdmin } from '@/store/auth';
 import { useOrder } from '@/composables/useOrder';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { OTHER_SERVICE_NAME, isOtherService, toMeters } from '@/lib/pricing';
 import { Button, Input, Modal } from '@/components';
 import type { Service, Customer, JobStatus } from '@/lib/types';
+import { CONFIG } from '@/lib/types';
 
 const Order: Component = () => {
   const navigate = useNavigate();
@@ -134,7 +136,7 @@ const Order: Component = () => {
           </div>
 
           {/* Items Table */}
-          <h3 class="font-bold mt-6 mb-2">รายการสั่งทำ ({order.state.form.items.length}/30)</h3>
+          <h3 class="font-bold mt-6 mb-2">รายการสั่งทำ ({order.state.form.items.length}/{CONFIG.MAX_ORDER_ITEMS})</h3>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse border min-w-[600px]">
               <thead>
@@ -160,7 +162,7 @@ const Order: Component = () => {
                           onChange={(e) => {
                             const selectedValue = e.currentTarget.value;
                             if (selectedValue === 'other') {
-                              order.setItemService(idx(), { service_name: 'อื่นๆ', unit_price: 0 });
+                              order.setItemService(idx(), { service_name: OTHER_SERVICE_NAME, unit_price: 0 });
                             } else {
                               const service = services().find((s) => String(s.id) === selectedValue);
                               if (service) {
@@ -179,9 +181,9 @@ const Order: Component = () => {
                               </option>
                             )}
                           </For>
-                          <option value="other" selected={item.service.service_name === 'อื่นๆ'}>อื่นๆ</option>
+                          <option value="other" selected={isOtherService(item.service)}>{OTHER_SERVICE_NAME}</option>
                         </select>
-                        <Show when={item.service.service_name === 'อื่นๆ'}>
+                        <Show when={isOtherService(item.service)}>
                           <input
                             type="text"
                             placeholder="ระบุชื่อ"
@@ -198,7 +200,7 @@ const Order: Component = () => {
                           value={item.w}
                           onInput={(e) => {
                             order.updateItemField(idx(), 'w', parseFloat(e.currentTarget.value) || 0);
-                            order.calcRow(idx(), 'size');
+                            order.recalcItem(idx());
                           }}
                         />
                       </td>
@@ -209,7 +211,7 @@ const Order: Component = () => {
                           value={item.h}
                           onInput={(e) => {
                             order.updateItemField(idx(), 'h', parseFloat(e.currentTarget.value) || 0);
-                            order.calcRow(idx(), 'size');
+                            order.recalcItem(idx());
                           }}
                         />
                       </td>
@@ -219,7 +221,7 @@ const Order: Component = () => {
                           value={item.unit}
                           onChange={(e) => {
                             order.updateItemField(idx(), 'unit', e.currentTarget.value as 'cm' | 'm');
-                            order.calcRow(idx(), 'size');
+                            order.recalcItem(idx());
                           }}
                         >
                           <option value="cm">ซม.</option>
@@ -233,7 +235,7 @@ const Order: Component = () => {
                           value={item.qty}
                           onInput={(e) => {
                             order.updateItemField(idx(), 'qty', parseInt(e.currentTarget.value) || 1);
-                            order.calcRow(idx(), 'qty');
+                            order.recalcItem(idx());
                           }}
                         />
                       </td>
@@ -246,7 +248,7 @@ const Order: Component = () => {
                           onInput={(e) => {
                             if (isAdmin()) {
                               order.updateItemField(idx(), 'price', parseFloat(e.currentTarget.value) || 0);
-                              order.calcRow(idx(), 'manual');
+                              order.recalcItem(idx());
                             }
                           }}
                         />
@@ -381,7 +383,7 @@ const Order: Component = () => {
                       <tr>
                         <td class="border border-black p-2 text-center">{idx() + 1}</td>
                         <td class="border border-black p-2">
-                          {item.service.service_name === 'อื่นๆ'
+                          {isOtherService(item.service)
                             ? item.customName
                             : item.service.service_name}
                           <Show when={item.note}>
@@ -389,8 +391,7 @@ const Order: Component = () => {
                           </Show>
                         </td>
                         <td class="border border-black p-2 text-center">
-                          {item.unit === 'cm' ? item.w / 100 : item.w} x{' '}
-                          {item.unit === 'cm' ? item.h / 100 : item.h}
+                          {toMeters(item.w, item.unit)} x {toMeters(item.h, item.unit)}
                         </td>
                         <td class="border border-black p-2 text-center">{item.qty}</td>
                         <td class="border border-black p-2 text-right">{formatCurrency(item.price)}</td>
