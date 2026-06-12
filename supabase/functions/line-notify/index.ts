@@ -23,12 +23,58 @@ interface JobRecord {
   item_count?: number;
 }
 
+interface StockItem {
+  name: string;
+  remaining_qty: number;
+  unit?: string;
+  min_alert?: number;
+}
+
+interface StockSummary {
+  total: number;
+  normal: number;
+  low: number;
+  out: number;
+  attention: StockItem[];
+  more_count: number;
+}
+
 const baht = (n: number) => Number(n ?? 0).toLocaleString('th-TH');
 
 const thaiDate = (d?: string) =>
   d ? new Date(d).toLocaleDateString('th-TH', { dateStyle: 'long' }) : null;
 
-const buildMessage = (event: string, r: JobRecord): string | null => {
+const buildStockMessage = (s: StockSummary): string => {
+  const lines = [
+    '📦 สรุปสต็อกประจำสัปดาห์',
+    `วัสดุทั้งหมด: ${s.total} รายการ`,
+    `🟢 ปกติ: ${s.normal}`,
+    `🟡 ใกล้หมด: ${s.low}`,
+    `🔴 หมด: ${s.out}`,
+  ];
+  if (s.attention?.length) {
+    lines.push('', '⚠️ ต้องสั่งซื้อ:');
+    for (const m of s.attention) {
+      lines.push(
+        Number(m.remaining_qty) <= 0
+          ? `🔴 ${m.name} — หมด`
+          : `🟡 ${m.name} — เหลือ ${baht(m.remaining_qty)} ${m.unit ?? ''} (เกณฑ์ ${baht(m.min_alert ?? 0)})`,
+      );
+    }
+    if (s.more_count > 0) {
+      lines.push(`...และอีก ${s.more_count} รายการ`);
+    }
+  } else {
+    lines.push('', '✅ สต็อกปกติทุกรายการ');
+  }
+  return lines.join('\n');
+};
+
+const buildMessage = (event: string, record: unknown): string | null => {
+  if (event === 'stock_summary') {
+    return buildStockMessage(record as StockSummary);
+  }
+  const r = record as JobRecord;
   if (event === 'new_order') {
     return [
       '🆕 มีใบสั่งงานใหม่',
