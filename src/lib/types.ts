@@ -67,6 +67,7 @@ export interface JobOrder {
   created_by: string;
   status: JobStatus;
   images?: string[];
+  drive_url?: string;
   created_at?: string;
   updated_at?: string;
 }

@@ -23,6 +23,12 @@ const History: Component = () => {
   const [uploading, setUploading] = createSignal(false);
   let fileInputRef: HTMLInputElement | undefined;
 
+  // Drive Link Modal
+  const [linkModalOpen, setLinkModalOpen] = createSignal(false);
+  const [linkJob, setLinkJob] = createSignal<JobOrder | null>(null);
+  const [linkInput, setLinkInput] = createSignal('');
+  const [savingLink, setSavingLink] = createSignal(false);
+
   onMount(() => {
     order.fetchHistory();
   });
@@ -70,6 +76,24 @@ const History: Component = () => {
         setImageJob({ ...job, images: newImages });
       }
     });
+  };
+
+  const openLinkModal = (job: JobOrder) => {
+    setLinkJob(job);
+    setLinkInput(job.drive_url || '');
+    setLinkModalOpen(true);
+  };
+
+  const saveLink = async () => {
+    const job = linkJob();
+    if (!job) return;
+    setSavingLink(true);
+    const ok = await order.updateJobDriveUrl(job.job_id, linkInput());
+    setSavingLink(false);
+    if (ok) {
+      setLinkJob({ ...job, drive_url: linkInput().trim() });
+      setLinkModalOpen(false);
+    }
   };
 
   return (
@@ -230,6 +254,16 @@ const History: Component = () => {
                             <span class="bg-purple-600 text-white rounded-full px-1.5 text-[10px] leading-4">
                               {job.images!.length}
                             </span>
+                          </Show>
+                        </button>
+                        <button
+                          onClick={() => openLinkModal(job)}
+                          class="bg-teal-50 text-teal-600 hover:bg-teal-100 border border-teal-200 px-3 py-1 rounded text-xs transition flex items-center gap-1"
+                          title={job.drive_url ? 'มีลิงก์ไดรฟ์แล้ว' : 'แนบลิงก์ไดรฟ์'}
+                        >
+                          🔗 ลิงก์
+                          <Show when={!!job.drive_url}>
+                            <span class="w-2 h-2 rounded-full bg-teal-600" />
                           </Show>
                         </button>
                         <Show when={isAdmin()}>
@@ -403,6 +437,66 @@ const History: Component = () => {
             <Button variant="secondary" onClick={() => setImageModalOpen(false)}>
               ปิด
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Drive Link Modal */}
+      <Modal
+        isOpen={linkModalOpen()}
+        onClose={() => setLinkModalOpen(false)}
+        title={`🔗 ลิงก์ไดรฟ์ผลิตงาน ${linkJob()?.job_id || ''}`}
+        size="md"
+      >
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              ลิงก์ไดรฟ์สำหรับผลิตงาน
+            </label>
+            <input
+              type="url"
+              inputmode="url"
+              placeholder="https://drive.google.com/..."
+              class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-teal-300"
+              value={linkInput()}
+              onInput={(e) => setLinkInput(e.currentTarget.value)}
+            />
+            <p class="text-xs text-gray-400 mt-1">วางลิงก์โฟลเดอร์/ไฟล์ไดรฟ์ ใช้ภายในสำหรับฝ่ายผลิต</p>
+          </div>
+
+          <Show when={linkInput().trim()}>
+            <a
+              href={linkInput().trim()}
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-1 text-teal-600 hover:text-teal-800 text-sm break-all"
+            >
+              ↗️ เปิดลิงก์ในแท็บใหม่
+            </a>
+          </Show>
+
+          <div class="flex justify-between items-center pt-2">
+            <Show when={linkJob()?.drive_url} fallback={<span />}>
+              <Button
+                variant="secondary"
+                class="bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+                disabled={savingLink()}
+                onClick={() => {
+                  setLinkInput('');
+                  saveLink();
+                }}
+              >
+                🗑️ ลบลิงก์
+              </Button>
+            </Show>
+            <div class="flex gap-2">
+              <Button variant="secondary" onClick={() => setLinkModalOpen(false)}>
+                ยกเลิก
+              </Button>
+              <Button onClick={saveLink} disabled={savingLink()}>
+                {savingLink() ? '⏳ กำลังบันทึก...' : '💾 บันทึก'}
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

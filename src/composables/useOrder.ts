@@ -350,6 +350,27 @@ const updateJobStatus = async (jobId: string, newStatus: JobStatus): Promise<boo
   });
 };
 
+// ============ Drive Link ============
+
+// แนบ/แก้ไข/ลบลิงก์ไดรฟ์สำหรับผลิตงาน (เก็บลิงก์เดียวต่อใบสั่งงาน)
+const updateJobDriveUrl = async (jobId: string, driveUrl: string): Promise<boolean> => {
+  const trimmed = driveUrl.trim();
+
+  const { error } = await supabase
+    .from('job_orders')
+    .update({ drive_url: trimmed || null })
+    .eq('job_id', jobId);
+
+  if (error) {
+    showToast(error.message, 'error');
+    return false;
+  }
+
+  showToast(trimmed ? 'บันทึกลิงก์แล้ว' : 'ลบลิงก์แล้ว');
+  await fetchHistory();
+  return true;
+};
+
 // ============ Job Images ============
 
 const JOB_IMAGE_BUCKET = 'job-images';
@@ -531,6 +552,7 @@ export const useOrder = () => ({
   viewJob,
   printJob,
   updateJobStatus,
+  updateJobDriveUrl,
   uploadJobImages,
   removeJobImage,
 

@@ -83,6 +83,16 @@ const JobDetail: Component = () => {
                    ← กลับหน้าประวัติ
                  </button>
                  <div class="flex gap-2">
+                   <Show when={j.drive_url}>
+                     <a
+                       href={j.drive_url}
+                       target="_blank"
+                       rel="noopener"
+                       class="inline-flex items-center gap-1 px-4 py-2 rounded-md font-medium bg-teal-50 text-teal-700 border border-teal-300 hover:bg-teal-100 transition"
+                     >
+                       🔗 ไดรฟ์ผลิตงาน
+                     </a>
+                   </Show>
                    <Show when={isAdmin()}>
                      <Button onClick={handleEdit} variant="secondary" class="bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100">
                        ✏️ แก้ไขใบสั่งงาน

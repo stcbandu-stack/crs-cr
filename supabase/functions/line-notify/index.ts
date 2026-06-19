@@ -6,12 +6,46 @@
 //   POST /line-notify/find-group-id  — set temporarily as the LINE webhook URL to
 //                                      discover the group ID from function logs
 //
+// Deploy with verify_jwt = false: this function is invoked by DB triggers / pg_cron
+// via pg_net WITHOUT a JWT, and authenticates itself with the x-notify-secret header.
+//
 // Required Edge Function secrets (Dashboard → Edge Functions → Secrets):
-//   LINE_CHANNEL_ACCESS_TOKEN — long-lived token from LINE Developers Console
 //   LINE_GROUP_ID             — target group (starts with "C")
 //   NOTIFY_SECRET             — same value as vault secret 'line_notify_secret'
+//   For the channel token, EITHER (preferred — no LINE Developers Console needed):
+//     LINE_CHANNEL_ID         — Messaging API channel ID
+//     LINE_CHANNEL_SECRET     — Messaging API channel secret
+//   OR (legacy): LINE_CHANNEL_ACCESS_TOKEN — long-lived token from the console
 
 const LINE_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
+const LINE_TOKEN_URL = 'https://api.line.me/oauth2/v3/token';
+
+// Resolve a channel access token. Prefer minting a short-lived stateless token
+// from the channel ID + secret — this works even when the channel sits under a
+// LINE Developers provider we can't open in the console. Falls back to a
+// long-lived token if one is configured instead.
+const getAccessToken = async (): Promise<string | null> => {
+  const id = Deno.env.get('LINE_CHANNEL_ID');
+  const secret = Deno.env.get('LINE_CHANNEL_SECRET');
+  if (id && secret) {
+    const res = await fetch(LINE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: id,
+        client_secret: secret,
+      }),
+    });
+    if (res.ok) {
+      const { access_token } = await res.json();
+      return access_token;
+    }
+    console.error('Failed to mint stateless token:', res.status, await res.text());
+    return null;
+  }
+  return Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') ?? null;
+};
 
 interface JobRecord {
   job_id: string;
@@ -39,10 +73,27 @@ interface StockSummary {
   more_count: number;
 }
 
+interface OverdueJob {
+  job_id: string;
+  customer_name: string;
+  event_name?: string;
+  event_date?: string;
+  days_overdue: number;
+}
+
+interface OverdueSummary {
+  count: number;
+  jobs: OverdueJob[];
+  more_count: number;
+}
+
 const baht = (n: number) => Number(n ?? 0).toLocaleString('th-TH');
 
 const thaiDate = (d?: string) =>
   d ? new Date(d).toLocaleDateString('th-TH', { dateStyle: 'long' }) : null;
+
+const thaiShortDate = (d?: string) =>
+  d ? new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '-';
 
 const buildStockMessage = (s: StockSummary): string => {
   const lines = [
@@ -70,9 +121,25 @@ const buildStockMessage = (s: StockSummary): string => {
   return lines.join('\n');
 };
 
+const buildOverdueMessage = (s: OverdueSummary): string | null => {
+  if (!s?.jobs?.length) return null;
+  const lines = [`🔴 งานเลยกำหนดส่งแล้วยังไม่เสร็จ (${s.count} งาน)`, ''];
+  for (const j of s.jobs) {
+    lines.push(`• ${j.job_id} — ${j.customer_name}${j.event_name ? ` (${j.event_name})` : ''}`);
+    lines.push(`  กำหนด ${thaiShortDate(j.event_date)} · เลย ${j.days_overdue} วัน`);
+  }
+  if (s.more_count > 0) {
+    lines.push('', `...และอีก ${s.more_count} งาน`);
+  }
+  return lines.join('\n');
+};
+
 const buildMessage = (event: string, record: unknown): string | null => {
   if (event === 'stock_summary') {
     return buildStockMessage(record as StockSummary);
+  }
+  if (event === 'overdue_jobs') {
+    return buildOverdueMessage(record as OverdueSummary);
   }
   const r = record as JobRecord;
   if (event === 'new_order') {
@@ -101,6 +168,26 @@ const buildMessage = (event: string, record: unknown): string | null => {
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
+
+  // Diagnostic: report the LINE monthly push quota limit and current consumption.
+  // Auth with x-notify-secret (same as the main route). Returns no secrets.
+  if (url.pathname.endsWith('/quota')) {
+    const expected = Deno.env.get('NOTIFY_SECRET');
+    if (!expected || req.headers.get('x-notify-secret') !== expected) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+    const token = await getAccessToken();
+    if (!token) return new Response('Not configured', { status: 500 });
+    const h = { Authorization: `Bearer ${token}` };
+    const [q, c] = await Promise.all([
+      fetch('https://api.line.me/v2/bot/message/quota', { headers: h }),
+      fetch('https://api.line.me/v2/bot/message/quota/consumption', { headers: h }),
+    ]);
+    const body = { quota: await q.json(), consumption: await c.json() };
+    return new Response(JSON.stringify(body), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   // Helper webhook target: log LINE event sources so the group ID can be read
   // from the function logs. Safe to leave deployed; it only logs and replies 200.
@@ -139,10 +226,10 @@ Deno.serve(async (req) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const token = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN');
+  const token = await getAccessToken();
   const groupId = Deno.env.get('LINE_GROUP_ID');
   if (!token || !groupId) {
-    console.error('Missing LINE_CHANNEL_ACCESS_TOKEN or LINE_GROUP_ID secret');
+    console.error('Missing LINE channel credentials or LINE_GROUP_ID secret');
     return new Response('Not configured', { status: 500 });
   }
 
@@ -162,8 +249,9 @@ Deno.serve(async (req) => {
   });
 
   if (!res.ok) {
-    console.error('LINE push failed:', res.status, await res.text());
-    return new Response('LINE push failed', { status: 502 });
+    const detail = await res.text();
+    console.error('LINE push failed:', res.status, detail);
+    return new Response(`LINE push failed: ${res.status} ${detail}`, { status: 502 });
   }
 
   return new Response('Sent', { status: 200 });
