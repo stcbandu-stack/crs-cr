@@ -4,10 +4,19 @@ import { useOrder } from '@/composables/useOrder';
 import { can, isAdmin } from '@/store/auth';
 import { openConfirm, showToast } from '@/store/ui';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import { prepareImageForUpload, formatMb, IMAGE_ACCEPT_ATTR } from '@/lib/image';
+import {
+  prepareImageForUpload,
+  formatMb,
+  IMAGE_ACCEPT_ATTR,
+  MAX_FILES_PER_BATCH,
+} from '@/lib/image';
 import { generateJobPdf } from '@/lib/pdf';
 import { Button, Input, Modal } from '@/components';
 import type { JobOrder, JobStatus } from '@/lib/types';
+
+// ปล่อยให้ browser ได้วาดหน้าจอก่อนงานหนักก้อนถัดไป
+const nextFrame = (): Promise<void> =>
+  new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
 // แปลงเป็น WebP + ย่อขนาดทีละไฟล์ แล้วรวมข้อความแจ้งเตือนของไฟล์ที่ไม่ผ่าน
 const prepareImages = async (
@@ -20,6 +29,8 @@ const prepareImages = async (
 
   for (const [index, file] of files.entries()) {
     onStep(index, file.name);
+    // คืน thread ให้ browser วาด progress bar ก่อนเริ่มงานหนักของไฟล์ถัดไป
+    await nextFrame();
     const { file: prepared, error } = await prepareImageForUpload(file);
     if (error || !prepared) {
       errors.push(error || `"${file.name}" เตรียมไฟล์ไม่สำเร็จ`);
@@ -91,12 +102,23 @@ const History: Component = () => {
   const uploadFiles = async (files: File[]) => {
     const job = imageJob();
     if (!job || files.length === 0) return;
+    if (busy()) return; // กันยิงซ้ำระหว่างที่รอบก่อนยังไม่จบ
+
+    // ลากมาทีเดียวเยอะเกินไป — ทำเท่าที่ไหว แล้วบอกว่าเหลืออีกกี่ไฟล์
+    let batch = files;
+    if (batch.length > MAX_FILES_PER_BATCH) {
+      showToast(
+        `เลือกมา ${batch.length} ไฟล์ — ทำให้ ${MAX_FILES_PER_BATCH} ไฟล์แรกก่อน ที่เหลือค่อยลากมาใหม่`,
+        'error'
+      );
+      batch = batch.slice(0, MAX_FILES_PER_BATCH);
+    }
 
     setSavedNote('');
-    setProgress({ done: 0, total: files.length, name: '' });
+    setProgress({ done: 0, total: batch.length, name: '' });
     setPreparing(true);
-    const { ready, errors, savedBytes } = await prepareImages(files, (done, name) =>
-      setProgress({ done, total: files.length, name })
+    const { ready, errors, savedBytes } = await prepareImages(batch, (done, name) =>
+      setProgress({ done, total: batch.length, name })
     );
     setPreparing(false);
 
@@ -108,7 +130,9 @@ const History: Component = () => {
     setUploading(true);
     const newImages = await order.uploadJobImages(job, ready);
     setUploading(false);
-    if (newImages) {
+
+    // ระหว่างอัปโหลด ผู้ใช้อาจปิด modal หรือสลับไปงานอื่น — อย่าเขียนทับ state ของงานใหม่
+    if (newImages && imageJob()?.job_id === job.job_id) {
       setImageJob({ ...job, images: newImages });
       if (savedBytes > 0) {
         setSavedNote(`บีบอัดเป็น WebP ประหยัดไป ${formatMb(savedBytes)}`);
@@ -140,8 +164,21 @@ const History: Component = () => {
   const handleDrop = async (e: DragEvent) => {
     e.preventDefault();
     setDragActive(false);
-    if (busy()) return;
-    const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
+    if (busy() || !e.dataTransfer) return;
+
+    // ลากโฟลเดอร์เข้ามา: บาง OS จะโผล่มาใน files เหมือนไฟล์ปกติ — คัดออกก่อน
+    const folders = Array.from(e.dataTransfer.items || [])
+      .map((item) => item.webkitGetAsEntry?.())
+      .filter((entry) => entry && !entry.isFile)
+      .map((entry) => entry!.name);
+
+    const files = Array.from(e.dataTransfer.files).filter((f) => !folders.includes(f.name));
+
+    if (folders.length > 0) {
+      showToast('ลากโฟลเดอร์เข้ามาไม่ได้ — กรุณาเปิดโฟลเดอร์แล้วลากเฉพาะไฟล์รูป', 'error');
+    }
+    if (files.length === 0) return;
+
     await uploadFiles(files);
   };
 
@@ -537,7 +574,10 @@ const History: Component = () => {
                 {dragActive() ? 'ปล่อยไฟล์เพื่อแนบรูป' : 'ลากรูปมาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์'}
               </div>
               <div class="text-xs text-gray-400 mt-1">
-                รองรับ PNG / JPG — ระบบจะแปลงเป็น WebP และย่อขนาดให้อัตโนมัติ (เลือกได้หลายไฟล์)
+                รองรับ PNG / JPG — ระบบจะแปลงเป็น WebP และย่อขนาดให้อัตโนมัติ
+              </div>
+              <div class="text-xs text-gray-400">
+                ครั้งละไม่เกิน {MAX_FILES_PER_BATCH} ไฟล์ • ภาพต้องไม่เกิน 60 ล้านพิกเซล
               </div>
               <Show when={savedNote()}>
                 <div class="text-xs text-green-600 mt-1">✅ {savedNote()}</div>
