@@ -6,6 +6,7 @@ import { authState } from '@/store/auth';
 import type { JobOrder, OrderItem, Service, Customer, JobStatus } from '@/lib/types';
 import { STATUS_OPTIONS, CONFIG } from '@/lib/types';
 import { generateJobIdPrefix } from '@/lib/utils';
+import { validateUploadFile } from '@/lib/image';
 import { isOtherService, calcItemPrice, calcItemTotal, resolveBasePrice, sumStoredTotals } from '@/lib/pricing';
 
 // ============ State ============
@@ -379,15 +380,18 @@ const uploadJobImages = async (job: JobOrder, files: File[]): Promise<string[] |
   const urls: string[] = [];
 
   for (const file of files) {
-    if (!file.type.startsWith('image/')) {
-      showToast(`"${file.name}" ไม่ใช่ไฟล์รูปภาพ`, 'error');
+    const invalid = validateUploadFile(file);
+    if (invalid) {
+      showToast(invalid, 'error');
       return null;
     }
 
-    const ext = file.name.split('.').pop() || 'jpg';
+    const ext = file.name.split('.').pop() || 'webp';
     const path = `${job.job_id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-    const { error } = await supabase.storage.from(JOB_IMAGE_BUCKET).upload(path, file);
+    const { error } = await supabase.storage
+      .from(JOB_IMAGE_BUCKET)
+      .upload(path, file, { contentType: file.type });
     if (error) {
       showToast(`อัปโหลดไม่สำเร็จ: ${error.message}`, 'error');
       return null;

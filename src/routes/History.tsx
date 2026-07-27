@@ -2,11 +2,36 @@ import { Component, For, Show, createSignal, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useOrder } from '@/composables/useOrder';
 import { can, isAdmin } from '@/store/auth';
-import { openConfirm } from '@/store/ui';
+import { openConfirm, showToast } from '@/store/ui';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { prepareImageForUpload, formatMb, IMAGE_ACCEPT_ATTR } from '@/lib/image';
 import { generateJobPdf } from '@/lib/pdf';
 import { Button, Input, Modal } from '@/components';
 import type { JobOrder, JobStatus } from '@/lib/types';
+
+// แปลงเป็น WebP + ย่อขนาดทีละไฟล์ แล้วรวมข้อความแจ้งเตือนของไฟล์ที่ไม่ผ่าน
+const prepareImages = async (
+  files: File[],
+  onStep: (done: number, name: string) => void
+): Promise<{ ready: File[]; errors: string[]; savedBytes: number }> => {
+  const ready: File[] = [];
+  const errors: string[] = [];
+  let savedBytes = 0;
+
+  for (const [index, file] of files.entries()) {
+    onStep(index, file.name);
+    const { file: prepared, error } = await prepareImageForUpload(file);
+    if (error || !prepared) {
+      errors.push(error || `"${file.name}" เตรียมไฟล์ไม่สำเร็จ`);
+      continue;
+    }
+    savedBytes += file.size - prepared.size;
+    ready.push(prepared);
+  }
+
+  onStep(files.length, '');
+  return { ready, errors, savedBytes };
+};
 
 const History: Component = () => {
   const navigate = useNavigate();
@@ -21,6 +46,15 @@ const History: Component = () => {
   const [imageModalOpen, setImageModalOpen] = createSignal(false);
   const [imageJob, setImageJob] = createSignal<JobOrder | null>(null);
   const [uploading, setUploading] = createSignal(false);
+  const [preparing, setPreparing] = createSignal(false);
+  const [dragActive, setDragActive] = createSignal(false);
+  const [savedNote, setSavedNote] = createSignal('');
+  const [progress, setProgress] = createSignal({ done: 0, total: 0, name: '' });
+  const busy = () => uploading() || preparing();
+  const progressPct = () => {
+    const p = progress();
+    return p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
+  };
   let fileInputRef: HTMLInputElement | undefined;
 
   // Drive Link Modal
@@ -49,22 +83,66 @@ const History: Component = () => {
 
   const openImageModal = (job: JobOrder) => {
     setImageJob(job);
+    setDragActive(false);
+    setSavedNote('');
     setImageModalOpen(true);
+  };
+
+  const uploadFiles = async (files: File[]) => {
+    const job = imageJob();
+    if (!job || files.length === 0) return;
+
+    setSavedNote('');
+    setProgress({ done: 0, total: files.length, name: '' });
+    setPreparing(true);
+    const { ready, errors, savedBytes } = await prepareImages(files, (done, name) =>
+      setProgress({ done, total: files.length, name })
+    );
+    setPreparing(false);
+
+    if (errors.length > 0) {
+      showToast(errors.join(' • '), 'error');
+    }
+    if (ready.length === 0) return;
+
+    setUploading(true);
+    const newImages = await order.uploadJobImages(job, ready);
+    setUploading(false);
+    if (newImages) {
+      setImageJob({ ...job, images: newImages });
+      if (savedBytes > 0) {
+        setSavedNote(`บีบอัดเป็น WebP ประหยัดไป ${formatMb(savedBytes)}`);
+      }
+    }
   };
 
   const handleFilesSelected = async (e: Event) => {
     const input = e.currentTarget as HTMLInputElement;
-    const job = imageJob();
     const files = input.files ? Array.from(input.files) : [];
     input.value = '';
-    if (!job || files.length === 0) return;
+    await uploadFiles(files);
+  };
 
-    setUploading(true);
-    const newImages = await order.uploadJobImages(job, files);
-    setUploading(false);
-    if (newImages) {
-      setImageJob({ ...job, images: newImages });
-    }
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    if (busy()) return;
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: DragEvent) => {
+    // กันไม่ให้กะพริบตอนลากผ่าน element ลูกข้างใน
+    const target = e.currentTarget as HTMLElement;
+    if (e.relatedTarget && target.contains(e.relatedTarget as Node)) return;
+    setDragActive(false);
+  };
+
+  const handleDrop = async (e: DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    if (busy()) return;
+    const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
+    await uploadFiles(files);
   };
 
   const handleRemoveImage = (url: string) => {
@@ -390,14 +468,7 @@ const History: Component = () => {
         size="lg"
       >
         <div class="space-y-4">
-          <Show
-            when={(imageJob()?.images?.length || 0) > 0}
-            fallback={
-              <div class="p-8 text-center text-gray-400 border-2 border-dashed rounded">
-                ยังไม่มีรูปแนบ — รูปที่แนบจะติดไปกับหน้า "ดู" และตอนปริ้น PDF
-              </div>
-            }
-          >
+          <Show when={(imageJob()?.images?.length || 0) > 0}>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
               <For each={imageJob()?.images}>
                 {(url) => (
@@ -418,21 +489,79 @@ const History: Component = () => {
             </div>
           </Show>
 
+          {/* Dropzone — ลากวางได้หลายไฟล์ หรือคลิกเพื่อเลือกไฟล์ */}
+          <div
+            onDragEnter={handleDragOver}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => !busy() && fileInputRef?.click()}
+            class={`p-8 text-center border-2 border-dashed rounded transition select-none ${
+              busy()
+                ? 'border-gray-200 text-gray-400 cursor-wait'
+                : dragActive()
+                  ? 'border-purple-500 bg-purple-50 text-purple-700 cursor-copy'
+                  : 'border-gray-300 text-gray-500 hover:border-purple-400 hover:bg-purple-50/40 cursor-pointer'
+            }`}
+          >
+            <Show
+              when={!busy()}
+              fallback={
+                <div class="space-y-2">
+                  <div class="font-medium text-gray-600">
+                    {preparing()
+                      ? `🗜️ กำลังบีบอัดรูป ${Math.min(progress().done + 1, progress().total)}/${progress().total}`
+                      : `⏳ กำลังอัปโหลด ${progress().total} รูป...`}
+                  </div>
+
+                  {/* Loading bar — บีบอัดเดินตามจำนวนไฟล์ ส่วนอัปโหลดใช้แถบวิ่ง */}
+                  <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      class={`h-full bg-purple-500 rounded-full transition-all duration-300 ${
+                        uploading() ? 'animate-pulse w-full' : ''
+                      }`}
+                      style={uploading() ? undefined : { width: `${progressPct()}%` }}
+                    />
+                  </div>
+
+                  <div class="text-xs text-gray-400 truncate">
+                    {preparing()
+                      ? progress().name || 'กำลังเตรียมไฟล์...'
+                      : 'กำลังส่งขึ้นเซิร์ฟเวอร์ อย่าปิดหน้านี้'}
+                  </div>
+                </div>
+              }
+            >
+              <div class="text-3xl mb-1">{dragActive() ? '📥' : '🖼️'}</div>
+              <div class="font-medium">
+                {dragActive() ? 'ปล่อยไฟล์เพื่อแนบรูป' : 'ลากรูปมาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์'}
+              </div>
+              <div class="text-xs text-gray-400 mt-1">
+                รองรับ PNG / JPG — ระบบจะแปลงเป็น WebP และย่อขนาดให้อัตโนมัติ (เลือกได้หลายไฟล์)
+              </div>
+              <Show when={savedNote()}>
+                <div class="text-xs text-green-600 mt-1">✅ {savedNote()}</div>
+              </Show>
+              <Show when={(imageJob()?.images?.length || 0) === 0}>
+                <div class="text-xs text-gray-400 mt-1">
+                  รูปที่แนบจะติดไปกับหน้า "ดู" และตอนปริ้น PDF
+                </div>
+              </Show>
+            </Show>
+          </div>
+
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept={IMAGE_ACCEPT_ATTR}
             multiple
             class="hidden"
             onChange={handleFilesSelected}
           />
 
           <div class="flex justify-between items-center">
-            <Button
-              onClick={() => fileInputRef?.click()}
-              disabled={uploading()}
-            >
-              {uploading() ? '⏳ กำลังอัปโหลด...' : '➕ แนบรูป'}
+            <Button onClick={() => fileInputRef?.click()} disabled={busy()}>
+              {preparing() ? '🗜️ กำลังบีบอัด...' : uploading() ? '⏳ กำลังอัปโหลด...' : '➕ แนบรูป'}
             </Button>
             <Button variant="secondary" onClick={() => setImageModalOpen(false)}>
               ปิด
