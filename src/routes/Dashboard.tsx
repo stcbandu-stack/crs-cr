@@ -76,6 +76,20 @@ const Dashboard: Component = () => {
             </div>
           </Card>
         </Show>
+
+        {/* แดชบอร์ดเคลม */}
+        <Show when={isAdmin()}>
+          <Card
+            class="min-h-[200px] flex flex-col justify-center items-center text-center gap-4 hover:scale-105 transition-transform border-2 border-red-100 hover:border-red-500 hover:bg-red-50"
+            onClick={() => navigate('/claims')}
+          >
+            <div class="text-6xl mb-2">⚠️</div>
+            <div>
+              <h3 class="text-2xl font-bold text-gray-800">แจ้งเคลม</h3>
+              <p class="text-gray-500 mt-1">ตรวจสอบเคลม / ยอดพิจารณาลงโทษ</p>
+            </div>
+          </Card>
+        </Show>
       </div>
     </div>
   );

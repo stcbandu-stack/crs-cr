@@ -80,6 +80,25 @@ export type JobStatus =
   | 'completed'
   | 'cancelled';
 
+export type ClaimType = 'remake' | 'fix' | 'other';
+export type ClaimStatus = 'open' | 'resolved';
+
+export interface Claim {
+  id?: string;
+  job_id: string;
+  customer_name: string;
+  claim_type: ClaimType;
+  claim_note?: string;
+  description: string;
+  claim_amount: number;
+  responsible_name?: string;
+  reported_by?: string;
+  status: ClaimStatus;
+  resolution_note?: string;
+  created_at?: string;
+  resolved_at?: string;
+}
+
 export interface Material {
   id: string;
   name: string;
@@ -144,6 +163,17 @@ export const STATUS_OPTIONS: StatusOptions = {
   'printing': { label: 'กำลังปริ้น', class: 'bg-purple-100 text-purple-700' },
   'completed': { label: 'เสร็จแล้ว', class: 'bg-green-100 text-green-700' },
   'cancelled': { label: 'ยกเลิก', class: 'bg-red-100 text-red-700' },
+};
+
+export const CLAIM_TYPE_OPTIONS: Record<ClaimType, string> = {
+  remake: 'ผลิตใหม่',
+  fix: 'แก้ไข',
+  other: 'อื่นๆ',
+};
+
+export const CLAIM_STATUS_OPTIONS: Record<ClaimStatus, StatusOption> = {
+  open: { label: 'รอดำเนินการ', class: 'bg-orange-100 text-orange-700' },
+  resolved: { label: 'ดำเนินการแล้ว', class: 'bg-green-100 text-green-700' },
 };
 
 export const MATERIAL_CATEGORIES = ['ไวนิล', 'สติกเกอร์', 'หมึกพิมพ์', 'อุปกรณ์ประกอบ', 'อื่นๆ'];

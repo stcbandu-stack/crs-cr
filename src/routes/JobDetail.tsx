@@ -2,10 +2,12 @@ import { Component, createSignal, onMount, Show, For } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import type { JobOrder, ProviderInfo } from '@/lib/types';
-import { Button } from '@/components';
+import type { JobOrder, ProviderInfo, ClaimType } from '@/lib/types';
+import { CLAIM_TYPE_OPTIONS } from '@/lib/types';
+import { Button, Modal, Select, Input } from '@/components';
 import { isAdmin } from '@/store/auth';
 import { useOrder } from '@/composables/useOrder';
+import { useClaims } from '@/composables/useClaims';
 
 const IMAGES_PER_PAGE = 6;
 
@@ -21,9 +23,48 @@ const JobDetail: Component = () => {
   const params = useParams();
   const navigate = useNavigate();
   const order = useOrder();
+  const claims = useClaims();
   const [job, setJob] = createSignal<JobOrder | null>(null);
   const [provider, setProvider] = createSignal<ProviderInfo | null>(null);
   const [loading, setLoading] = createSignal(true);
+
+  // Claim Modal
+  const [claimModalOpen, setClaimModalOpen] = createSignal(false);
+  const [claimType, setClaimType] = createSignal<ClaimType>('remake');
+  const [claimNote, setClaimNote] = createSignal('');
+  const [claimDescription, setClaimDescription] = createSignal('');
+  const [submittingClaim, setSubmittingClaim] = createSignal(false);
+
+  const openClaimModal = () => {
+    setClaimType('remake');
+    setClaimNote('');
+    setClaimDescription('');
+    setClaimModalOpen(true);
+  };
+
+  const submitClaimForm = async () => {
+    const j = job();
+    if (!j) return;
+    if (!claimDescription().trim()) {
+      alert('กรุณากรอกรายละเอียดการเคลม');
+      return;
+    }
+
+    setSubmittingClaim(true);
+    const ok = await claims.submitClaim({
+      jobId: j.job_id,
+      customerName: j.customer_name,
+      claimType: claimType(),
+      claimNote: claimNote(),
+      description: claimDescription(),
+      // ยอดเคลม = ยอดค่าสินค้าที่ลูกค้าจ่ายในงานนี้ (ไม่ให้กรอกเอง) — ใช้ดูว่าจะสูญเงินไปเท่าไหร่ถ้าเคลมจริง
+      claimAmount: j.total_price || 0,
+    });
+    setSubmittingClaim(false);
+    if (ok) {
+      setClaimModalOpen(false);
+    }
+  };
 
   onMount(async () => {
     try {
@@ -98,6 +139,9 @@ const JobDetail: Component = () => {
                        ✏️ แก้ไขใบสั่งงาน
                      </Button>
                    </Show>
+                   <Button onClick={openClaimModal} variant="secondary" class="bg-red-50 text-red-700 border-red-300 hover:bg-red-100">
+                     ⚠️ แจ้งเคลม
+                   </Button>
                    <Button onClick={handlePrint} variant="primary">🖨️ พิมพ์เอกสาร</Button>
                  </div>
               </div>
@@ -217,6 +261,57 @@ const JobDetail: Component = () => {
           )}
         </Show>
       </Show>
+
+      {/* Claim Modal */}
+      <Modal
+        isOpen={claimModalOpen()}
+        onClose={() => setClaimModalOpen(false)}
+        title={`⚠️ แจ้งเคลม ${job()?.job_id || ''}`}
+        size="md"
+      >
+        <div class="space-y-4">
+          <Select
+            label="ประเภทการเคลม"
+            value={claimType()}
+            onChange={(e) => setClaimType(e.currentTarget.value as ClaimType)}
+            options={Object.entries(CLAIM_TYPE_OPTIONS).map(([value, label]) => ({ value, label }))}
+          />
+
+          <Show when={claimType() === 'other'}>
+            <Input
+              label="ระบุประเภท"
+              value={claimNote()}
+              onInput={(e) => setClaimNote(e.currentTarget.value)}
+              placeholder="ระบุว่าเคลมเรื่องอะไร"
+            />
+          </Show>
+
+          <div class="w-full">
+            <label class="block text-sm font-bold mb-1">รายละเอียด</label>
+            <textarea
+              class="w-full border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-300 border-gray-300"
+              rows="3"
+              value={claimDescription()}
+              onInput={(e) => setClaimDescription(e.currentTarget.value)}
+              placeholder="ลูกค้าเคลมเรื่องอะไร เกิดอะไรขึ้น"
+            />
+          </div>
+
+          <div class="bg-gray-50 border rounded p-3 text-sm flex justify-between items-center">
+            <span class="text-gray-500">ยอดเคลม (ยอดค่างานนี้ที่ลูกค้าจ่าย)</span>
+            <span class="font-bold text-red-600">{formatCurrency(job()?.total_price)} บาท</span>
+          </div>
+
+          <div class="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setClaimModalOpen(false)}>
+              ยกเลิก
+            </Button>
+            <Button variant="danger" onClick={submitClaimForm} isLoading={submittingClaim()}>
+              บันทึกการแจ้งเคลม
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

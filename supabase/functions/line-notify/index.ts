@@ -57,6 +57,21 @@ interface JobRecord {
   item_count?: number;
 }
 
+interface ClaimRecord {
+  job_id: string;
+  customer_name: string;
+  claim_type: string;
+  claim_amount: number;
+  description?: string;
+  responsible_name?: string;
+}
+
+const CLAIM_TYPE_LABEL: Record<string, string> = {
+  remake: 'ผลิตใหม่',
+  fix: 'แก้ไข',
+  other: 'อื่นๆ',
+};
+
 interface StockItem {
   name: string;
   remaining_qty: number;
@@ -161,6 +176,18 @@ const buildMessage = (event: string, record: unknown): string | null => {
       `ลูกค้า: ${r.customer_name}`,
       r.event_name ? `งาน: ${r.event_name}` : null,
       `ยอดรวม: ${baht(r.total_price)} บาท`,
+    ].filter(Boolean).join('\n');
+  }
+  if (event === 'new_claim') {
+    const c = record as ClaimRecord;
+    return [
+      '⚠️ มีการแจ้งเคลมใหม่',
+      `เลขที่งาน: ${c.job_id}`,
+      `ลูกค้า: ${c.customer_name}`,
+      `ประเภท: ${CLAIM_TYPE_LABEL[c.claim_type] || c.claim_type}`,
+      c.description ? `รายละเอียด: ${c.description}` : null,
+      `ยอดเคลม: ${baht(c.claim_amount)} บาท`,
+      c.responsible_name ? `ผู้รับผิดชอบ: ${c.responsible_name}` : null,
     ].filter(Boolean).join('\n');
   }
   return null;

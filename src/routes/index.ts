@@ -10,3 +10,5 @@ export { default as InventoryDashboard } from './InventoryDashboard';
 export { default as InventoryReport } from './InventoryReport';
 export { default as Customers } from './Customers';
 export { default as Services } from './Services';
+export { default as Claims } from './Claims';
+export { default as ClaimsDashboard } from './ClaimsDashboard';
