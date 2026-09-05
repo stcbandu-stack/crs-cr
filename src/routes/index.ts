@@ -12,3 +12,6 @@ export { default as Customers } from './Customers';
 export { default as Services } from './Services';
 export { default as Claims } from './Claims';
 export { default as ClaimsDashboard } from './ClaimsDashboard';
+export { default as Rentals } from './Rentals';
+export { default as RentalDetail } from './RentalDetail';
+export { default as RentalAssets } from './RentalAssets';

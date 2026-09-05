@@ -99,6 +99,64 @@ export interface Claim {
   resolved_at?: string;
 }
 
+// ============ Rentals ============
+
+export type RentalStatus = 'active' | 'returned' | 'cancelled';
+export type RentalBilledUnit = 'day' | 'hour';
+
+export interface RentalAsset {
+  id: string;
+  name: string;
+  daily_rate: number;
+  is_active: boolean;
+  last_condition_image?: string | null;
+  last_condition_at?: string | null;
+  created_at?: string;
+}
+
+export interface RentalItem {
+  id: string;
+  rental_id: string;
+  asset_id: string;
+  asset_name: string;
+  daily_rate: number;
+  line_total: number;
+  handover_images: string[];
+  return_images: string[];
+  returned_at?: string | null;
+  returned_by?: string | null;
+  return_note?: string | null;
+  created_at?: string;
+}
+
+export interface Rental {
+  id?: string;
+  rental_id: string;
+  customer_name: string;
+  event_name?: string | null;
+  start_at: string;
+  end_at: string;
+  billed_unit: RentalBilledUnit;
+  billed_qty: number;
+  total_price: number;
+  status: RentalStatus;
+  note?: string | null;
+  created_by?: string | null;
+  contract_version: string;
+  /** snapshot HTML ของสัญญาฉบับที่ผู้เช่ากดยอมรับจริง — หลักฐาน ไม่ render ใหม่จากโค้ดปัจจุบัน */
+  contract_html?: string | null;
+  accepted_by_name: string;
+  accepted_at: string;
+  created_at?: string;
+  items?: RentalItem[];
+}
+
+export const RENTAL_STATUS_OPTIONS: Record<RentalStatus, StatusOption> = {
+  active: { label: 'กำลังเช่า', class: 'bg-blue-100 text-blue-700' },
+  returned: { label: 'คืนครบแล้ว', class: 'bg-green-100 text-green-700' },
+  cancelled: { label: 'ยกเลิก', class: 'bg-red-100 text-red-700' },
+};
+
 export interface Material {
   id: string;
   name: string;

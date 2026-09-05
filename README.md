@@ -89,6 +89,7 @@ Required tables:
 - `job_orders` - Job orders
 - `materials` - Inventory materials
 - `material_logs` - Stock movement logs
+- `rental_assets` / `rentals` / `rental_items` - Equipment rentals (see `supabase/rentals-setup.sql`)
 
 ## Migration Notes
 
