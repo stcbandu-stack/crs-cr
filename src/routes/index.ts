@@ -15,3 +15,4 @@ export { default as ClaimsDashboard } from './ClaimsDashboard';
 export { default as Rentals } from './Rentals';
 export { default as RentalDetail } from './RentalDetail';
 export { default as RentalAssets } from './RentalAssets';
+export { default as SessionsMonitor } from './SessionsMonitor';

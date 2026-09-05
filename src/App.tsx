@@ -2,8 +2,8 @@ import { Component, Show, onMount, createEffect } from 'solid-js';
 import { Router, Route, Navigate, useNavigate } from '@solidjs/router';
 import { authState, initializeAuth, logout, isAuthenticated, userDisplayName, updateDisplayName } from '@/store/auth';
 import { showToast } from '@/store/ui';
-import { Toast, ConfirmModal, DeviceLimitModal, Button } from '@/components';
-import { Login, Dashboard, Order, History, JobDetail, Inventory, InventoryLogs, InventoryDashboard, InventoryReport, Customers, Services, Claims, ClaimsDashboard, Rentals, RentalDetail, RentalAssets } from '@/routes';
+import { Toast, ConfirmModal, Button } from '@/components';
+import { Login, Dashboard, Order, History, JobDetail, Inventory, InventoryLogs, InventoryDashboard, InventoryReport, Customers, Services, Claims, ClaimsDashboard, Rentals, RentalDetail, RentalAssets, SessionsMonitor } from '@/routes';
 
 // Layout Component with Nav
 const Layout: Component<{ children?: any }> = (props) => {
@@ -88,7 +88,6 @@ const App: Component = () => {
       {/* Global UI Components */}
       <Toast />
       <ConfirmModal />
-      <DeviceLimitModal />
 
       {/* Router */}
       <Router>
@@ -108,6 +107,7 @@ const App: Component = () => {
         <Route path="/rentals/:id" component={() => <ProtectedRoute component={RentalDetail} />} />
         <Route path="/claims" component={() => <ProtectedRoute component={Claims} />} />
         <Route path="/claims/dashboard" component={() => <ProtectedRoute component={ClaimsDashboard} />} />
+        <Route path="/sessions" component={() => <ProtectedRoute component={SessionsMonitor} />} />
         <Route path="*" component={() => <Navigate href="/" />} />
       </Router>
     </>

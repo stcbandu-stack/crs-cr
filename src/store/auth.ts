@@ -1,12 +1,15 @@
 import { createSignal, createEffect, createMemo } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { supabase } from '@/lib/supabase';
-import type { Profile, UserSession, ProviderInfo, Customer, Service } from '@/lib/types';
-import { CONFIG, ROLE_PERMISSIONS } from '@/lib/types';
+import type { Profile, ProviderInfo, Customer, Service } from '@/lib/types';
+import { ROLE_PERMISSIONS } from '@/lib/types';
 import { getDeviceId, getDeviceName } from '@/lib/utils';
 import type { Session, User } from '@supabase/supabase-js';
 
 // ============ Auth Store State ============
+// No per-account device cap — a login just registers this device in
+// user_sessions (kept for the admin device monitor at /sessions and for
+// checkSessionValidity below); it never blocks or evicts other devices.
 interface AuthState {
   session: Session | null;
   user: User | null;
@@ -14,7 +17,6 @@ interface AuthState {
   provider: ProviderInfo | null;
   customers: Customer[];
   services: Service[];
-  deviceSessions: UserSession[];
   isLoading: boolean;
   isInitialized: boolean;
 }
@@ -26,7 +28,6 @@ const [authState, setAuthState] = createStore<AuthState>({
   provider: null,
   customers: [],
   services: [],
-  deviceSessions: [],
   isLoading: false,
   isInitialized: false,
 });
@@ -65,7 +66,7 @@ export const initializeAuth = async (): Promise<void> => {
   }
 };
 
-export const login = async (email: string, password: string): Promise<{ success: boolean; requiresDeviceKick?: boolean; error?: string }> => {
+export const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
   setAuthState({ isLoading: true });
 
   try {
@@ -73,39 +74,22 @@ export const login = async (email: string, password: string): Promise<{ success:
     if (error) throw error;
 
     const userId = data.session.user.id;
-    
-    // Check active device sessions
-    const { data: sessions, error: sessError } = await supabase
+
+    // Register or refresh this device's session row — purely for the admin
+    // device monitor (/sessions), never a gate on logging in.
+    const { data: existingSession } = await supabase
       .from('user_sessions')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (sessError) throw sessError;
-
-    // Check if this device already has a session
-    const existingSession = sessions?.find((s: UserSession) => s.device_id === currentDeviceId);
+      .select('id')
+      .eq('user_id', userId)
+      .eq('device_id', currentDeviceId)
+      .maybeSingle();
 
     if (existingSession) {
-      // Update last active time
       await supabase.from('user_sessions').update({ last_active: new Date().toISOString() }).eq('id', existingSession.id);
-      await finalizeLogin(data.session);
-      return { success: true };
+    } else {
+      await registerDeviceSession(userId);
     }
 
-    // New device
-    if ((sessions?.length || 0) >= CONFIG.MAX_DEVICES) {
-      // Over device limit - need to kick another device
-      setAuthState({ 
-        session: data.session, 
-        user: data.session.user,
-        deviceSessions: sessions || []
-      });
-      await fetchUserProfile();
-      return { success: false, requiresDeviceKick: true };
-    }
-
-    // Under limit - register new session
-    await registerDeviceSession(userId);
     await finalizeLogin(data.session);
     return { success: true };
 
@@ -130,28 +114,7 @@ export const logout = async (): Promise<void> => {
     session: null,
     user: null,
     profile: null,
-    deviceSessions: [],
   });
-};
-
-export const kickDevice = async (sessionId: string): Promise<boolean> => {
-  setAuthState({ isLoading: true });
-  try {
-    await supabase.from('user_sessions').delete().eq('id', sessionId);
-    await registerDeviceSession(authState.session!.user.id);
-    await finalizeLogin(authState.session!);
-    return true;
-  } catch (error) {
-    console.error('Error kicking device:', error);
-    return false;
-  } finally {
-    setAuthState({ isLoading: false });
-  }
-};
-
-export const cancelDeviceKick = async (): Promise<void> => {
-  setAuthState({ deviceSessions: [] });
-  await logout();
 };
 
 // ============ Helper Functions ============
@@ -165,7 +128,7 @@ const registerDeviceSession = async (userId: string): Promise<void> => {
 };
 
 const finalizeLogin = async (session: Session): Promise<void> => {
-  setAuthState({ session, user: session.user, deviceSessions: [] });
+  setAuthState({ session, user: session.user });
   await fetchUserProfile();
   await loadInitialData();
 };
@@ -308,8 +271,6 @@ export const useAuth = () => ({
   can,
   login,
   logout,
-  kickDevice,
-  cancelDeviceKick,
   initializeAuth,
   updateDisplayName,
   addService,

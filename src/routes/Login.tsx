@@ -27,8 +27,6 @@ const Login: Component = () => {
     if (result.success) {
       showToast('เข้าสู่ระบบสำเร็จ');
       navigate('/');
-    } else if (result.requiresDeviceKick) {
-      // DeviceLimitModal will be shown automatically
     } else if (result.error) {
       showToast(result.error, 'error');
     }

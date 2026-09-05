@@ -26,7 +26,7 @@
 
 ## Features
 
-- 🔐 **Authentication** - Login with Supabase Auth + Device Management (max 2 devices)
+- 🔐 **Authentication** - Login with Supabase Auth; admin can monitor which devices each account is logged in on (no device limit)
 - 📝 **Order Management** - Create, view, and print job orders
 - 📦 **Inventory Management** - Track materials, stock in/out
 - 👥 **Customer Database** - Corporate customer management
