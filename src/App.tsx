@@ -3,7 +3,7 @@ import { Router, Route, Navigate, useNavigate } from '@solidjs/router';
 import { authState, initializeAuth, logout, isAuthenticated, userDisplayName, updateDisplayName } from '@/store/auth';
 import { showToast } from '@/store/ui';
 import { Toast, ConfirmModal, Button } from '@/components';
-import { Login, Dashboard, Order, History, JobDetail, Inventory, InventoryLogs, InventoryDashboard, InventoryReport, Customers, Services, Claims, ClaimsDashboard, Rentals, RentalDetail, RentalAssets, SessionsMonitor } from '@/routes';
+import { Login, Dashboard, Order, History, JobDetail, Inventory, InventoryLogs, InventoryDashboard, InventoryReport, Customers, Services, Claims, ClaimsDashboard, Rentals, RentalsHistory, RentalDetail, RentalAssets, SessionsMonitor } from '@/routes';
 
 // Layout Component with Nav
 const Layout: Component<{ children?: any }> = (props) => {
@@ -103,6 +103,7 @@ const App: Component = () => {
         <Route path="/customers" component={() => <ProtectedRoute component={Customers} />} />
         <Route path="/services" component={() => <ProtectedRoute component={Services} />} />
         <Route path="/rentals" component={() => <ProtectedRoute component={Rentals} />} />
+        <Route path="/rentals/history" component={() => <ProtectedRoute component={RentalsHistory} />} />
         <Route path="/rentals/assets" component={() => <ProtectedRoute component={RentalAssets} />} />
         <Route path="/rentals/:id" component={() => <ProtectedRoute component={RentalDetail} />} />
         <Route path="/claims" component={() => <ProtectedRoute component={Claims} />} />

@@ -57,7 +57,19 @@ const Dashboard: Component = () => {
           <div class="text-6xl mb-2">🎪</div>
           <div>
             <h3 class="text-2xl font-bold text-gray-800">เช่าทรัพย์สิน</h3>
-            <p class="text-gray-500 mt-1">คีย์ใบเช่า / รับคืนอุปกรณ์</p>
+            <p class="text-gray-500 mt-1">คีย์ใบเช่าใหม่</p>
+          </div>
+        </Card>
+
+        {/* ประวัติการเช่า */}
+        <Card
+          class="min-h-[200px] flex flex-col justify-center items-center text-center gap-4 hover:scale-105 transition-transform border-2 border-cyan-100 hover:border-cyan-500 hover:bg-cyan-50"
+          onClick={() => navigate('/rentals/history')}
+        >
+          <div class="text-6xl mb-2">📜</div>
+          <div>
+            <h3 class="text-2xl font-bold text-gray-800">ประวัติการเช่า</h3>
+            <p class="text-gray-500 mt-1">ดูใบเช่าเก่า / รับคืนอุปกรณ์</p>
           </div>
         </Card>
 

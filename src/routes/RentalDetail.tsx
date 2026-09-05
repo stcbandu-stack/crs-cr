@@ -142,7 +142,7 @@ const RentalDetail: Component = () => {
     const r = current();
     if (!r) return;
     openConfirm(`ยกเลิกใบเช่า ${r.rental_id}?`, async () => {
-      if (await rental.cancelRental(r.rental_id)) navigate('/rentals');
+      if (await rental.cancelRental(r.rental_id)) navigate('/rentals/history');
     });
   };
 
@@ -219,7 +219,7 @@ const RentalDetail: Component = () => {
 
   return (
     <div class="container mx-auto p-4 max-w-4xl">
-      <button onClick={() => navigate('/rentals')} class="mb-4 text-gray-500 hover:text-gray-800">
+      <button onClick={() => navigate('/rentals/history')} class="mb-4 text-gray-500 hover:text-gray-800">
         ← กลับรายการเช่า
       </button>
 
