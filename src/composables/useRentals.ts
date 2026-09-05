@@ -75,6 +75,23 @@ const updateAssetRate = async (id: string, dailyRate: number): Promise<boolean> 
   return true;
 };
 
+// เปลี่ยนชื่อไม่กระทบใบเช่าเก่า — rental_items.asset_name เป็น snapshot ของตัวเองอยู่แล้ว
+const updateAssetName = async (id: string, name: string): Promise<boolean> => {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    showToast('ชื่อทรัพย์สินห้ามว่าง', 'error');
+    return false;
+  }
+
+  const { error } = await supabase.from('rental_assets').update({ name: trimmed }).eq('id', id);
+  if (error) {
+    showToast('บันทึกชื่อไม่สำเร็จ', 'error');
+    return false;
+  }
+  await fetchAssets();
+  return true;
+};
+
 // ปิดการใช้งานแทนการลบ — ของที่เคยถูกเช่าไปแล้วยังต้องอ้างอิงได้จากใบเช่าเก่า
 const setAssetActive = async (id: string, isActive: boolean): Promise<boolean> => {
   const { error } = await supabase.from('rental_assets').update({ is_active: isActive }).eq('id', id);
@@ -409,15 +426,11 @@ const removeItemImage = async (item: RentalItem, kind: ImageKind, url: string): 
 
 // ============ Return ============
 
+// รูปตอนคืนไม่บังคับ — งานแต่ละคนเยอะ ถ่ายไม่ทันทุกครั้งเป็นเรื่องปกติ
 const returnItem = async (item: RentalItem, note: string): Promise<boolean> => {
   if (item.returned_at) return false;
 
   const photos = imagesOf(item, 'return');
-  if (photos.length === 0) {
-    showToast('แนบรูปสภาพอุปกรณ์อย่างน้อย 1 รูปก่อนรับคืน', 'error');
-    return false;
-  }
-
   const now = new Date().toISOString();
   const { error } = await supabase
     .from('rental_items')
@@ -435,11 +448,13 @@ const returnItem = async (item: RentalItem, note: string): Promise<boolean> => {
     return false;
   }
 
-  // สภาพล่าสุดของอุปกรณ์ = รูปตอนรับคืนครั้งหลังสุด
-  await supabase
-    .from('rental_assets')
-    .update({ last_condition_image: photos[photos.length - 1], last_condition_at: now })
-    .eq('id', item.asset_id);
+  // สภาพล่าสุดของอุปกรณ์ = รูปตอนรับคืนครั้งหลังสุด (อัปเดตเฉพาะเมื่อมีรูปแนบมาจริง)
+  if (photos.length > 0) {
+    await supabase
+      .from('rental_assets')
+      .update({ last_condition_image: photos[photos.length - 1], last_condition_at: now })
+      .eq('id', item.asset_id);
+  }
 
   // คืนครบทั้งใบเมื่อไหร่ ใบเช่าถึงจะปิด
   const { data: siblings } = await supabase
@@ -466,6 +481,7 @@ export const useRentals = () => ({
   fetchRentals,
   findRental,
   addAsset,
+  updateAssetName,
   updateAssetRate,
   setAssetActive,
   conflictsFor,

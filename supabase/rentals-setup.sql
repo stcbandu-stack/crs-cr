@@ -13,8 +13,9 @@
 --
 -- Availability is derived, not stored: an asset is unavailable while a
 -- rental_item covering it has returned_at IS NULL — indefinitely, even past the
--- agreed end_at. Keying the return (which requires at least one photo) is the
--- only thing that puts the asset back in circulation.
+-- agreed end_at. Keying the return (photos optional — staff discretion, not
+-- every return can realistically be photographed) is what puts the asset back
+-- in circulation.
 --
 -- `customer_name` / `created_by` / `returned_by` are plain text snapshots
 -- (not FKs to customers/profiles) — same convention as job_orders and claims.
@@ -60,14 +61,11 @@ create table if not exists public.rental_items (
   daily_rate numeric not null,     -- snapshot ณ วันทำสัญญา
   line_total numeric not null default 0,
   handover_images jsonb not null default '[]'::jsonb, -- ตอนส่งมอบ (ไม่บังคับ)
-  return_images jsonb not null default '[]'::jsonb,   -- ตอนคืน (บังคับอย่างน้อย 1)
+  return_images jsonb not null default '[]'::jsonb,   -- ตอนคืน (ไม่บังคับ)
   returned_at timestamptz,         -- null = ยังไม่คืน = อุปกรณ์ยังถูกจองอยู่
   returned_by text,
   return_note text,
-  created_at timestamptz not null default now(),
-  -- กฎ "ต้องมีรูปถึงจะคืนได้" บังคับที่ DB ด้วย ไม่ใช่แค่ปุ่มใน UI
-  constraint rental_items_return_needs_photo
-    check (returned_at is null or jsonb_array_length(return_images) > 0)
+  created_at timestamptz not null default now()
 );
 
 alter table public.rental_assets enable row level security;

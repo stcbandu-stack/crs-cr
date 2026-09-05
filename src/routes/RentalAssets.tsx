@@ -41,6 +41,14 @@ const RentalAssets: Component = () => {
     });
   };
 
+  const handleUpdateName = (id: string, currentName: string, nextName: string) => {
+    const trimmed = nextName.trim();
+    if (!trimmed || trimmed === currentName) return;
+    openConfirm(`ยืนยันเปลี่ยนชื่อเป็น "${trimmed}"? (ใบเช่าเก่ายังใช้ชื่อเดิมตามที่เคยบันทึกไว้)`, async () => {
+      if (await rental.updateAssetName(id, trimmed)) showToast('บันทึกชื่อแล้ว');
+    });
+  };
+
   const handleToggle = (id: string, name: string, isActive: boolean) => {
     const action = isActive ? 'ปิดการให้เช่า' : 'เปิดให้เช่าอีกครั้ง';
     openConfirm(`${action} "${name}"?`, async () => {
@@ -102,7 +110,16 @@ const RentalAssets: Component = () => {
               <For each={rental.assets()}>
                 {(asset) => (
                   <tr class="hover:bg-gray-50" classList={{ 'opacity-50': !asset.is_active }}>
-                    <td class="p-3 font-medium">{asset.name}</td>
+                    <td class="p-3 font-medium">
+                      <input
+                        type="text"
+                        value={asset.name}
+                        onChange={(e) => handleUpdateName(asset.id, asset.name, e.currentTarget.value)}
+                        disabled={!isAdmin()}
+                        class="border p-1 w-full min-w-[140px] rounded bg-gray-50 disabled:border-transparent disabled:bg-transparent disabled:opacity-100 disabled:cursor-not-allowed"
+                        title={isAdmin() ? 'แก้ไขชื่อ' : 'ต้องเป็น Admin เท่านั้น'}
+                      />
+                    </td>
                     <td class="p-3">
                       <Show
                         when={asset.last_condition_image}

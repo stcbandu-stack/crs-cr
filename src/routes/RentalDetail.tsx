@@ -120,12 +120,9 @@ const RentalDetail: Component = () => {
   // ============ Return ============
 
   const handleReturn = (item: RentalItem) => {
-    if ((item.return_images || []).length === 0) {
-      showToast('แนบรูปสภาพอุปกรณ์อย่างน้อย 1 รูปก่อนรับคืน', 'error');
-      return;
-    }
-
-    openConfirm(`ยืนยันรับคืน "${item.asset_name}"? หลังรับคืนแล้วจะแก้ไขรูปไม่ได้`, async () => {
+    const hasPhotos = (item.return_images || []).length > 0;
+    const warning = hasPhotos ? ' หลังรับคืนแล้วจะแก้ไขรูปไม่ได้' : '';
+    openConfirm(`ยืนยันรับคืน "${item.asset_name}"?${warning}`, async () => {
       setReturningId(item.id);
       await rental.returnItem(item, notes()[item.id] || '');
       setReturningId('');
@@ -153,7 +150,7 @@ const RentalDetail: Component = () => {
         <div class="text-sm font-medium mb-1">
           {kind === 'return' ? 'รูปสภาพตอนรับคืน' : 'รูปสภาพตอนส่งมอบ'}
           <span class="text-xs font-normal text-gray-500">
-            {kind === 'return' ? ' — ต้องมีอย่างน้อย 1 รูปจึงจะรับคืนได้' : ' — ไม่บังคับ'}
+            {kind === 'return' ? ' — ไม่บังคับ แนะนำให้ถ่ายไว้เป็นหลักฐานเมื่อมีเวลา' : ' — ไม่บังคับ'}
           </span>
         </div>
 
@@ -187,9 +184,8 @@ const RentalDetail: Component = () => {
                 handleFiles(item, kind, e.dataTransfer?.files || null);
               }}
               class="h-20 w-20 border-2 border-dashed rounded text-xs text-gray-500 hover:border-blue-400 hover:text-blue-500 disabled:opacity-50"
-              classList={{ 'border-red-300': kind === 'return' && images().length === 0 }}
             >
-              {busy() ? 'กำลังอัป...' : '+ ลากรูป\nมาวาง'}
+              {busy() ? 'กำลังอัป...' : '+ เพิ่มรูป'}
             </button>
             <input
               ref={inputRef}
@@ -350,18 +346,12 @@ const RentalDetail: Component = () => {
                         </div>
                         <Button
                           variant="success"
-                          disabled={(item.return_images || []).length === 0}
                           isLoading={returningId() === item.id}
                           onClick={() => handleReturn(item)}
                         >
                           ยืนยันรับคืนชิ้นนี้
                         </Button>
                       </div>
-                      <Show when={(item.return_images || []).length === 0}>
-                        <p class="text-xs text-red-600 mt-2">
-                          แนบรูปสภาพอุปกรณ์อย่างน้อย 1 รูปก่อนรับคืน — อุปกรณ์จะยังจองใหม่ไม่ได้จนกว่าจะคีย์คืน
-                        </p>
-                      </Show>
                     </Show>
                   </div>
                 )}
