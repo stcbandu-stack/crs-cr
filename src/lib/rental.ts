@@ -2,53 +2,48 @@ import type { ProviderInfo, RentalBilledUnit } from './types';
 
 // ============ Pricing ============
 //
-// ค่าเช่าคิดเป็นราคาต่อ 24 ชั่วโมง (daily_rate)
-//   • เช่าไม่ถึง 24 ชม. → คิดตามชั่วโมงจริง ปัดเศษขึ้นเป็นชั่วโมง ในอัตรา daily_rate/24
-//   • เช่าตั้งแต่ 24 ชม. ขึ้นไป → ปัดเศษขึ้นเป็นวันเต็ม (25 ชม. = 2 วัน, 30 ชม. = 2 วัน)
+// คิดค่าเช่าเป็นรายวันเสมอ (ตามคำสั่งผู้บริหาร) — เช่ากี่ชั่วโมงในวันนั้นก็คิดเต็มวัน
+// ไม่มีการคิดสัดส่วนตามชั่วโมงอีกต่อไป นับวันแบบรวมวันที่คืน (inclusive):
+// เช่าและคืนวันเดียวกัน = 1 วัน, เช่าวันนี้คืนพรุ่งนี้ = 2 วัน
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-export const RENTAL_CONTRACT_VERSION = 'v2'; // v2: ข้อ 8 แก้ให้รูปตอนคืนไม่บังคับ
+export const RENTAL_CONTRACT_VERSION = 'v3'; // v3: เปลี่ยนเป็นคิดค่าเช่ารายวันล้วน ไม่คิดตามชั่วโมงแล้ว
 
 export interface RentalCharge {
   unit: RentalBilledUnit;
-  qty: number; // จำนวนวัน หรือ จำนวนชั่วโมง (ปัดขึ้นแล้ว)
+  qty: number; // จำนวนวัน (นับรวมวันคืน)
   label: string;
 }
 
-/** null = ช่วงเวลาไม่ถูกต้อง (คืนก่อนรับ หรือกรอกไม่ครบ) */
+/** null = ช่วงเวลาไม่ถูกต้อง (วันคืนมาก่อนวันรับ หรือกรอกไม่ครบ) */
 export const calcRentalCharge = (startAt: string, endAt: string): RentalCharge | null => {
   if (!startAt || !endAt) return null;
 
   const ms = new Date(endAt).getTime() - new Date(startAt).getTime();
-  if (!Number.isFinite(ms) || ms <= 0) return null;
+  if (!Number.isFinite(ms) || ms < 0) return null;
 
-  if (ms < DAY_MS) {
-    const qty = Math.ceil(ms / HOUR_MS);
-    return { unit: 'hour', qty, label: `${qty} ชั่วโมง` };
-  }
-
-  const qty = Math.ceil(ms / DAY_MS);
+  const qty = Math.round(ms / DAY_MS) + 1;
   return { unit: 'day', qty, label: `${qty} วัน` };
 };
 
 const roundBaht = (amount: number): number => Math.round(amount * 100) / 100;
 
 export const calcLineTotal = (dailyRate: number, charge: RentalCharge): number =>
-  charge.unit === 'day'
-    ? roundBaht(dailyRate * charge.qty)
-    : roundBaht((dailyRate * charge.qty) / 24);
+  roundBaht(dailyRate * charge.qty);
 
 /** ข้อความอธิบายวิธีคิดเงินของรายการหนึ่ง เช่น "1,000 × 2 วัน" */
 export const describeLineCalc = (dailyRate: number, charge: RentalCharge): string =>
-  charge.unit === 'day'
-    ? `${dailyRate.toLocaleString()} × ${charge.qty} วัน`
-    : `${dailyRate.toLocaleString()} ÷ 24 × ${charge.qty} ชม.`;
+  `${dailyRate.toLocaleString()} × ${charge.qty} วัน`;
 
-/** เกินกำหนดคืนกี่ชั่วโมง (0 = ยังไม่เกิน) — ใช้แค่ขึ้นป้ายเตือน ไม่คิดค่าปรับ */
+/**
+ * เกินกำหนดคืนกี่ชั่วโมง (0 = ยังไม่เกิน) — ใช้แค่ขึ้นป้ายเตือน ไม่คิดค่าปรับ
+ * endAt คือ "วันคืน" แบบนับรวม จึงยังไม่ถือว่าเกินกำหนดจนกว่าจะพ้นเที่ยงคืนของวันนั้นไปแล้ว
+ */
 export const overdueHours = (endAt: string, now: Date = new Date()): number => {
-  const ms = now.getTime() - new Date(endAt).getTime();
+  const dueBy = new Date(endAt).getTime() + DAY_MS;
+  const ms = now.getTime() - dueBy;
   return ms > 0 ? Math.floor(ms / HOUR_MS) : 0;
 };
 
@@ -122,11 +117,6 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
     )
     .join('');
 
-  const rateBasis =
-    ctx.charge.unit === 'day'
-      ? `คิดค่าเช่าเป็นรายวัน จำนวน ${ctx.charge.qty} วัน`
-      : `คิดค่าเช่าเป็นรายชั่วโมง จำนวน ${ctx.charge.qty} ชั่วโมง ในอัตราชั่วโมงละหนึ่งในยี่สิบสี่ของค่าเช่าต่อวัน`;
-
   const acceptanceBlock = ctx.acceptedByName
     ? `
     <div class="accept">
@@ -175,14 +165,12 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
 
     <h2>ข้อ 2 กำหนดระยะเวลาเช่า</h2>
     <p>
-      ผู้เช่าเช่าทรัพย์สินตามข้อ 1 มีกำหนดระยะเวลาตั้งแต่ <strong>${thDateTime(ctx.startAt)}</strong>
-      ถึง <strong>${thDateTime(ctx.endAt)}</strong> รวมระยะเวลาเช่า <strong>${escapeHtml(ctx.charge.label)}</strong>
+      ผู้เช่าเช่าทรัพย์สินตามข้อ 1 ตั้งแต่วันที่ <strong>${thDate(ctx.startAt)}</strong>
+      ถึงวันที่ <strong>${thDate(ctx.endAt)}</strong> รวมระยะเวลาเช่า <strong>${escapeHtml(ctx.charge.label)}</strong>
     </p>
     <p>
-      คู่สัญญาตกลงให้ถือระยะเวลายี่สิบสี่ชั่วโมงเป็นหนึ่งวัน หากระยะเวลาเช่าไม่ถึงยี่สิบสี่ชั่วโมง
-      ให้คิดค่าเช่าตามจำนวนชั่วโมงที่เช่าจริงโดยปัดเศษของชั่วโมงขึ้นเป็นหนึ่งชั่วโมง
-      และหากระยะเวลาเช่าตั้งแต่ยี่สิบสี่ชั่วโมงขึ้นไป ให้ปัดเศษของวันขึ้นเป็นหนึ่งวันเต็ม
-      สำหรับสัญญาฉบับนี้ ${rateBasis}
+      คู่สัญญาตกลงคิดค่าเช่าเป็นรายวัน โดยไม่ว่าผู้เช่าจะใช้ทรัพย์สินที่เช่าในแต่ละวันเป็นระยะเวลากี่ชั่วโมงก็ตาม
+      ให้คิดค่าเช่าเต็มจำนวนหนึ่งวันสำหรับวันนั้น และนับรวมวันที่รับและวันที่คืนเป็นวันเช่าด้วยทั้งสองวัน
     </p>
 
     <h2>ข้อ 3 ค่าเช่าและการชำระเงิน</h2>

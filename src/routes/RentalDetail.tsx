@@ -19,6 +19,9 @@ import type { RentalItem } from '@/lib/types';
 const thDateTime = (value?: string | null): string =>
   value ? new Date(value).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
 
+const thDate = (value?: string | null): string =>
+  value ? new Date(value).toLocaleDateString('th-TH', { dateStyle: 'medium' }) : '-';
+
 // แปลงเป็น WebP + ย่อขนาด แล้วรวมข้อความของไฟล์ที่ไม่ผ่าน
 const prepareAll = async (files: File[]): Promise<{ ready: File[]; errors: string[] }> => {
   const ready: File[] = [];
@@ -43,6 +46,7 @@ const RentalDetail: Component = () => {
   const [busyKey, setBusyKey] = createSignal(''); // `${itemId}:${kind}` ที่กำลังอัปโหลดอยู่
   const [returningId, setReturningId] = createSignal('');
   const [notes, setNotes] = createSignal<Record<string, string>>({});
+  const [damages, setDamages] = createSignal<Record<string, string>>({});
   const [contractOpen, setContractOpen] = createSignal(false);
 
   onMount(() => {
@@ -121,10 +125,15 @@ const RentalDetail: Component = () => {
 
   const handleReturn = (item: RentalItem) => {
     const hasPhotos = (item.return_images || []).length > 0;
-    const warning = hasPhotos ? ' หลังรับคืนแล้วจะแก้ไขรูปไม่ได้' : '';
+    const damageAmount = parseFloat(damages()[item.id] || '') || 0;
+    const warnings = [
+      hasPhotos ? 'หลังรับคืนแล้วจะแก้ไขรูปไม่ได้' : '',
+      damageAmount > 0 ? `เรียกเก็บค่าเสียหาย ${damageAmount.toLocaleString()} บาท` : '',
+    ].filter(Boolean);
+    const warning = warnings.length ? ` ${warnings.join(' · ')}` : '';
     openConfirm(`ยืนยันรับคืน "${item.asset_name}"?${warning}`, async () => {
       setReturningId(item.id);
-      await rental.returnItem(item, notes()[item.id] || '');
+      await rental.returnItem(item, notes()[item.id] || '', damageAmount);
       setReturningId('');
     });
   };
@@ -247,10 +256,10 @@ const RentalDetail: Component = () => {
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm border-t pt-4">
                 <div>
-                  <span class="text-gray-500">รับของ:</span> {thDateTime(r().start_at)}
+                  <span class="text-gray-500">วันที่เช่า:</span> {thDate(r().start_at)}
                 </div>
                 <div>
-                  <span class="text-gray-500">กำหนดคืน:</span> {thDateTime(r().end_at)}
+                  <span class="text-gray-500">ถึงวันที่:</span> {thDate(r().end_at)}
                 </div>
                 <div>
                   <span class="text-gray-500">ผู้ยอมรับสัญญา:</span> {r().accepted_by_name} (
@@ -323,6 +332,12 @@ const RentalDetail: Component = () => {
                       <div class="text-sm text-gray-600 mt-2">หมายเหตุการคืน: {item.return_note}</div>
                     </Show>
 
+                    <Show when={item.damage_amount > 0}>
+                      <div class="text-sm text-red-600 font-medium mt-2">
+                        ⚠️ ค่าเสียหายที่เรียกเก็บ: {formatCurrency(item.damage_amount)} บาท
+                      </div>
+                    </Show>
+
                     {/* รูปตอนส่งมอบ — ซ่อนหลังรับคืนถ้าไม่มีรูป จะได้ไม่รก */}
                     <Show when={!item.returned_at || (item.handover_images || []).length > 0}>
                       {photoSection(item, 'handover')}
@@ -340,6 +355,19 @@ const RentalDetail: Component = () => {
                             value={notes()[item.id] || ''}
                             onInput={(e) =>
                               setNotes((prev) => ({ ...prev, [item.id]: e.currentTarget.value }))
+                            }
+                            class="w-full border border-gray-300 p-2 rounded"
+                          />
+                        </div>
+                        <div class="w-full sm:w-40">
+                          <label class="block text-sm font-bold mb-1">ค่าเสียหาย (ถ้ามี)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={damages()[item.id] || ''}
+                            onInput={(e) =>
+                              setDamages((prev) => ({ ...prev, [item.id]: e.currentTarget.value }))
                             }
                             class="w-full border border-gray-300 p-2 rounded"
                           />

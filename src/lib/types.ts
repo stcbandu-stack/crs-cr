@@ -126,6 +126,8 @@ export interface RentalItem {
   returned_at?: string | null;
   returned_by?: string | null;
   return_note?: string | null;
+  /** ค่าปรับ/ค่าเสียหายที่เรียกเก็บกรณีทรัพย์สินชำรุด (ป.พ.พ. ม.562) — 0 = ไม่มี */
+  damage_amount: number;
   created_at?: string;
 }
 

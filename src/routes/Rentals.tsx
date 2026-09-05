@@ -10,6 +10,7 @@ import {
   describeLineCalc,
   buildContractHtml,
   contractStyleTag,
+  printContractHtml,
   overdueHours,
   formatOverdue,
 } from '@/lib/rental';
@@ -17,28 +18,24 @@ import { Button, Input, Modal } from '@/components';
 import { RENTAL_STATUS_OPTIONS } from '@/lib/types';
 import type { Rental } from '@/lib/types';
 
-// <input type="datetime-local"> ต้องการรูปแบบ YYYY-MM-DDTHH:mm ตามเวลาเครื่อง
-const toLocalInput = (date: Date): string => {
+// <input type="date"> ต้องการรูปแบบ YYYY-MM-DD ตามเวลาเครื่อง
+const toDateInput = (date: Date): string => {
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
-    date.getMinutes()
-  )}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 
-const thDateTime = (value: string): string =>
-  new Date(value).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+const thDate = (value: string): string => new Date(value).toLocaleDateString('th-TH', { dateStyle: 'medium' });
 
 const Rentals: Component = () => {
   const navigate = useNavigate();
   const rental = useRentals();
 
-  const now = new Date();
-  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const today = toDateInput(new Date());
 
   const [customerName, setCustomerName] = createSignal('');
   const [eventName, setEventName] = createSignal('');
-  const [startAt, setStartAt] = createSignal(toLocalInput(now));
-  const [endAt, setEndAt] = createSignal(toLocalInput(tomorrow));
+  const [startAt, setStartAt] = createSignal(today);
+  const [endAt, setEndAt] = createSignal(today);
   const [selectedIds, setSelectedIds] = createSignal<string[]>([]);
   const [note, setNote] = createSignal('');
   const [acceptedName, setAcceptedName] = createSignal('');
@@ -150,6 +147,37 @@ const Rentals: Component = () => {
     return overdueHours(r.end_at);
   };
 
+  const totalDamage = (r: Rental) => (r.items || []).reduce((sum, i) => sum + (i.damage_amount || 0), 0);
+
+  // ใบเก่าใช้สำเนาสัญญาที่ยอมรับจริง (contract_html) — render สดเฉพาะใบที่ไม่มีสำเนา (ข้อมูลเก่า)
+  const printRental = (r: Rental) => {
+    const charge = calcRentalCharge(r.start_at, r.end_at) || {
+      unit: r.billed_unit,
+      qty: r.billed_qty,
+      label: `${r.billed_qty} ${r.billed_unit === 'day' ? 'วัน' : 'ชั่วโมง'}`,
+    };
+    const html =
+      r.contract_html ||
+      buildContractHtml({
+        rentalId: r.rental_id,
+        customerName: r.customer_name,
+        eventName: r.event_name,
+        startAt: r.start_at,
+        endAt: r.end_at,
+        charge,
+        items: (r.items || []).map((i) => ({
+          asset_name: i.asset_name,
+          daily_rate: i.daily_rate,
+          line_total: i.line_total,
+        })),
+        totalPrice: r.total_price,
+        acceptedByName: r.accepted_by_name,
+        acceptedAt: r.accepted_at,
+        provider: authState.provider,
+      });
+    printContractHtml(html, r.rental_id);
+  };
+
   return (
     <div class="container mx-auto p-4 max-w-5xl">
       <div class="flex justify-between items-center mb-6 gap-4 flex-wrap">
@@ -199,15 +227,15 @@ const Rentals: Component = () => {
           />
 
           <Input
-            label="วันเวลาที่รับของ"
-            type="datetime-local"
+            label="วันที่เช่า"
+            type="date"
             value={startAt()}
             onInput={(e) => setStartAt(e.currentTarget.value)}
           />
 
           <Input
-            label="วันเวลาที่คืนของ"
-            type="datetime-local"
+            label="ถึงวันที่"
+            type="date"
             value={endAt()}
             onInput={(e) => setEndAt(e.currentTarget.value)}
           />
@@ -217,13 +245,10 @@ const Rentals: Component = () => {
         <div class="mb-4 p-3 rounded bg-gray-50 text-sm">
           <Show
             when={charge()}
-            fallback={<span class="text-red-600">ช่วงเวลาไม่ถูกต้อง — เวลาคืนต้องหลังเวลารับ</span>}
+            fallback={<span class="text-red-600">ช่วงวันที่ไม่ถูกต้อง — วันคืนต้องไม่ก่อนวันรับ</span>}
           >
             <span class="font-bold text-blue-700">ระยะเวลาเช่า {charge()!.label}</span>
-            <span class="text-gray-500">
-              {' '}
-              · คิด 24 ชม. = 1 วัน · ไม่ถึง 1 วันคิดรายชั่วโมง (ปัดขึ้น) · เกิน 1 วันปัดขึ้นเป็นวันเต็ม
-            </span>
+            <span class="text-gray-500"> · คิดค่าเช่าเป็นรายวัน เช่ากี่ชั่วโมงในวันนั้นก็คิดเต็มวัน</span>
           </Show>
         </div>
 
@@ -280,7 +305,7 @@ const Rentals: Component = () => {
                       ติดใบ {conflict()!.rentalId}
                       {conflict()!.notReturned
                         ? ' — ของยังไม่กลับเข้าระบบ'
-                        : ` (${thDateTime(conflict()!.startAt)} – ${thDateTime(conflict()!.endAt)})`}
+                        : ` (${thDate(conflict()!.startAt)} – ${thDate(conflict()!.endAt)})`}
                     </div>
                   </Show>
                   <Show when={!conflict() && noRate()}>
@@ -378,13 +403,18 @@ const Rentals: Component = () => {
                           {formatOverdue(overdue(r))}
                         </span>
                       </Show>
+                      <Show when={totalDamage(r) > 0}>
+                        <span class="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">
+                          ⚠️ ค่าเสียหาย {formatCurrency(totalDamage(r))} บาท
+                        </span>
+                      </Show>
                     </div>
                     <div class="text-sm text-gray-700 mt-1">{r.customer_name}</div>
                     <Show when={r.event_name}>
                       <div class="text-xs text-gray-500">งาน: {r.event_name}</div>
                     </Show>
                     <div class="text-xs text-gray-500 mt-1">
-                      {thDateTime(r.start_at)} → {thDateTime(r.end_at)} ({r.billed_qty}{' '}
+                      {thDate(r.start_at)} → {thDate(r.end_at)} ({r.billed_qty}{' '}
                       {r.billed_unit === 'day' ? 'วัน' : 'ชั่วโมง'})
                     </div>
                     <div class="text-xs text-gray-500 mt-1">
@@ -393,7 +423,16 @@ const Rentals: Component = () => {
                   </div>
                   <div class="text-right">
                     <div class="text-lg font-bold text-blue-700">{formatCurrency(r.total_price)} บาท</div>
-                    <div class="text-xs text-gray-400">ดูรายละเอียด / คีย์คืน →</div>
+                    <div class="text-xs text-gray-400 mb-2">ดูรายละเอียด / คีย์คืน →</div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        printRental(r);
+                      }}
+                      class="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1 rounded text-xs transition inline-flex items-center gap-1"
+                    >
+                      🖨️ PDF
+                    </button>
                   </div>
                 </div>
               </div>

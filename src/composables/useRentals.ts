@@ -11,10 +11,14 @@ const RENTAL_IMAGE_BUCKET = 'rental-images';
 
 export type ImageKind = 'handover' | 'return';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** end_at ถูกเก็บเป็น "วันสุดท้ายที่ยังใช้ของอยู่" (นับรวม) — บวก 1 วันให้เป็นขอบเขตแบบไม่รวม (exclusive) เวลาเทียบช่วงเวลาทับซ้อน */
+const dayEndExclusive = (iso: string): number => new Date(iso).getTime() + DAY_MS;
+
 export interface RentalFormInput {
   customerName: string;
   eventName: string;
-  /** ค่าจาก <input type="datetime-local"> */
+  /** ค่าจาก <input type="date"> เช่น "2026-09-05" */
   startAt: string;
   endAt: string;
   assetIds: string[];
@@ -131,14 +135,15 @@ const findRental = (rentalId: string): Rental | undefined =>
 
 // ============ Availability ============
 //
-// อุปกรณ์ชิ้นหนึ่งไม่ว่างสำหรับช่วง [s, e) ถ้ามีรายการเช่าที่ยังไม่ถูกยกเลิก และ
-//   • ยังไม่คีย์คืน  → บล็อกตั้งแต่ start_at เป็นต้นไปแบบไม่มีที่สิ้นสุด
+// วันเช่าและวันคืนนับรวมทั้งคู่ (inclusive) — อุปกรณ์ชิ้นหนึ่งไม่ว่างสำหรับช่วงวันที่
+// [startDate, endDate] ถ้ามีรายการเช่าที่ยังไม่ถูกยกเลิก และ
+//   • ยังไม่คีย์คืน  → บล็อกตั้งแต่วันรับของเป็นต้นไปแบบไม่มีที่สิ้นสุด
 //                     (เลยกำหนดคืนแล้วก็ยังบล็อก ของยังไม่กลับเข้าระบบ)
-//   • คีย์คืนแล้ว    → บล็อกเฉพาะช่วง [start_at, end_at) ของใบนั้น
+//   • คีย์คืนแล้ว    → บล็อกเฉพาะช่วง [วันรับของ, วันคืน] ของใบนั้น (รวมวันคืน)
 
 const conflictsFor = (startAt: string, endAt: string, assetIds: string[]): RentalConflict[] => {
   const s = new Date(startAt).getTime();
-  const e = new Date(endAt).getTime();
+  const e = dayEndExclusive(endAt);
   if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return [];
 
   const wanted = new Set(assetIds);
@@ -151,7 +156,7 @@ const conflictsFor = (startAt: string, endAt: string, assetIds: string[]): Renta
       if (!wanted.has(item.asset_id)) continue;
 
       const busyFrom = new Date(rental.start_at).getTime();
-      const busyUntil = item.returned_at ? new Date(rental.end_at).getTime() : Infinity;
+      const busyUntil = item.returned_at ? dayEndExclusive(rental.end_at) : Infinity;
 
       if (busyFrom < e && busyUntil > s) {
         found.push({
@@ -220,7 +225,7 @@ const createRental = async (input: RentalFormInput): Promise<string | null> => {
   const endAt = new Date(input.endAt).toISOString();
   const charge = calcRentalCharge(startAt, endAt);
   if (!charge) {
-    showToast('ช่วงเวลาเช่าไม่ถูกต้อง — เวลาคืนต้องหลังเวลารับ', 'error');
+    showToast('ช่วงวันที่เช่าไม่ถูกต้อง — วันคืนต้องไม่ก่อนวันรับ', 'error');
     return null;
   }
 
@@ -427,7 +432,7 @@ const removeItemImage = async (item: RentalItem, kind: ImageKind, url: string): 
 // ============ Return ============
 
 // รูปตอนคืนไม่บังคับ — งานแต่ละคนเยอะ ถ่ายไม่ทันทุกครั้งเป็นเรื่องปกติ
-const returnItem = async (item: RentalItem, note: string): Promise<boolean> => {
+const returnItem = async (item: RentalItem, note: string, damageAmount: number): Promise<boolean> => {
   if (item.returned_at) return false;
 
   const photos = imagesOf(item, 'return');
@@ -438,6 +443,7 @@ const returnItem = async (item: RentalItem, note: string): Promise<boolean> => {
       returned_at: now,
       returned_by: authState.profile?.display_name || null,
       return_note: note || null,
+      damage_amount: damageAmount || 0,
     })
     .eq('id', item.id)
     .is('returned_at', null); // กันกดซ้ำจากสองเครื่องพร้อมกัน
