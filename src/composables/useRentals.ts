@@ -41,17 +41,18 @@ const [loading, setLoading] = createSignal(false);
 // ============ Assets ============
 
 const fetchAssets = async (): Promise<void> => {
-  const { data, error } = await supabase
-    .from('rental_assets')
-    .select('*')
-    .order('created_at', { ascending: true });
+  const { data, error } = await supabase.from('rental_assets').select('*');
 
   if (error) {
     console.error(error);
     showToast('โหลดรายการทรัพย์สินไม่สำเร็จ', 'error');
     return;
   }
-  setAssets(data || []);
+
+  // เรียงตามชื่อ (ไทย) แทนการพึ่ง created_at — ของที่ seed มาทีเดียวมี created_at
+  // เท่ากันหมด ผลลัพธ์จาก DB จึงไม่มีลำดับที่แน่นอนและดูสุ่มเมื่อพลิกไปพลิกมา
+  const sorted = [...(data || [])].sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  setAssets(sorted);
 };
 
 const addAsset = async (name: string, dailyRate: number): Promise<boolean> => {
