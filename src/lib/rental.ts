@@ -252,7 +252,7 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
 };
 
 const CONTRACT_STYLE = `
-  .contract { font-family: 'Tahoma', 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.75; color: #111; }
+  .contract { font-family: 'Sarabun', 'Tahoma', 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.75; color: #111; }
   .contract h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
   .contract h2 { font-size: 15px; margin: 18px 0 4px; }
   .contract p { margin: 6px 0; text-align: justify; }
@@ -278,6 +278,9 @@ export const printContractHtml = (body: string, rentalId?: string): void => {
 <head>
   <meta charset="UTF-8">
   <title>สัญญาเช่าทรัพย์สิน ${rentalId || ''}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { padding: 28px 32px; }
@@ -295,7 +298,12 @@ export const printContractHtml = (body: string, rentalId?: string): void => {
   }
   printWindow.document.write(html);
   printWindow.document.close();
-  printWindow.onload = () => printWindow.print();
+  // รอฟอนต์ Sarabun โหลดเสร็จก่อนสั่งพิมพ์ ไม่งั้นบางเครื่องจะได้ฟอนต์สำรอง
+  printWindow.onload = () => {
+    const doc = printWindow.document as Document & { fonts?: FontFaceSet };
+    const ready = doc.fonts?.ready ?? Promise.resolve();
+    ready.then(() => printWindow.print()).catch(() => printWindow.print());
+  };
 };
 
 export const printRentalContract = (ctx: RentalContractContext): void =>
