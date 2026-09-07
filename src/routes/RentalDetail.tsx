@@ -6,6 +6,7 @@ import { showToast, openConfirm } from '@/store/ui';
 import { formatCurrency } from '@/lib/utils';
 import {
   printContractHtml,
+  buildPhotoAppendixHtml,
   buildContractHtml,
   contractStyleTag,
   overdueHours,
@@ -279,7 +280,7 @@ const RentalDetail: Component = () => {
                 <Button variant="secondary" size="sm" onClick={() => setContractOpen(true)}>
                   📄 ดูสัญญา
                 </Button>
-                <Button variant="secondary" size="sm" onClick={() => printContractHtml(contractBody(), r().rental_id)}>
+                <Button variant="secondary" size="sm" onClick={() => printContractHtml(contractBody(), r().rental_id, buildPhotoAppendixHtml(items(), r().rental_id))}>
                   🖨️ พิมพ์สัญญา
                 </Button>
                 <Show when={r().status === 'active' && returnedCount() === 0}>

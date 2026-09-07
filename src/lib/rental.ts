@@ -251,6 +251,48 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
   </div>`;
 };
 
+/** ภาคผนวกรูปสภาพทรัพย์สิน — แยกจาก contract_html เสมอ
+ *  สัญญาที่ snapshot ไว้คือหลักฐานฉบับที่ลูกค้ายอมรับ ห้ามยัดรูปเข้าไปทีหลัง
+ *  รูปจึงต่อท้ายเป็นหน้าแนบตอนพิมพ์แทน */
+export interface RentalPhotoItem {
+  asset_name: string;
+  handover_images?: string[] | null;
+  return_images?: string[] | null;
+  returned_at?: string | null;
+}
+
+const photoGrid = (title: string, urls: string[]): string =>
+  urls.length
+    ? `<div class="photo-set">
+      <div class="photo-set-title">${escapeHtml(title)}</div>
+      <div class="photo-grid">${urls.map((url) => `<img src="${escapeHtml(url)}" alt="">`).join('')}</div>
+    </div>`
+    : '';
+
+export const buildPhotoAppendixHtml = (items: RentalPhotoItem[], rentalId?: string): string => {
+  const blocks = items
+    .map((item) => {
+      const handover = item.handover_images || [];
+      const ret = item.return_images || [];
+      if (!handover.length && !ret.length) return '';
+      return `<div class="photo-item">
+      <h2>${escapeHtml(item.asset_name)}</h2>
+      ${photoGrid('สภาพตอนส่งมอบ', handover)}
+      ${photoGrid(`สภาพตอนรับคืน${item.returned_at ? ` (${thDateTime(item.returned_at)})` : ''}`, ret)}
+    </div>`;
+    })
+    .filter(Boolean)
+    .join('');
+
+  if (!blocks) return '';
+
+  return `<div class="contract appendix">
+    <h1>ภาคผนวก — ภาพสภาพทรัพย์สิน</h1>
+    <p class="subtitle">แนบท้ายสัญญาเลขที่ ${escapeHtml(rentalId || '-')}</p>
+    ${blocks}
+  </div>`;
+};
+
 const CONTRACT_STYLE = `
   .contract { font-family: 'Sarabun', 'Tahoma', 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.75; color: #111; }
   .contract h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
@@ -266,13 +308,19 @@ const CONTRACT_STYLE = `
   .contract .accept.pending { border-style: dashed; color: #555; }
   .contract .accept-title { font-weight: bold; margin-bottom: 6px; }
   .contract .fineprint { font-size: 11px; color: #555; }
+  .contract.appendix { page-break-before: always; }
+  .contract .photo-item { margin-top: 18px; page-break-inside: avoid; }
+  .contract .photo-set { margin: 8px 0 14px; }
+  .contract .photo-set-title { font-size: 13px; font-weight: bold; margin-bottom: 6px; }
+  .contract .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .contract .photo-grid img { width: 100%; border: 1px solid #999; object-fit: contain; }
 `;
 
 /** style สำหรับแสดงสัญญาใน modal (ฝัง <style> ไปกับ innerHTML) */
 export const contractStyleTag = `<style>${CONTRACT_STYLE}</style>`;
 
 /** พิมพ์จาก HTML ที่มีอยู่แล้ว (ปกติคือ rentals.contract_html ที่ snapshot ไว้ตอนยอมรับ) */
-export const printContractHtml = (body: string, rentalId?: string): void => {
+export const printContractHtml = (body: string, rentalId?: string, appendix?: string): void => {
   const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -288,7 +336,7 @@ export const printContractHtml = (body: string, rentalId?: string): void => {
     @page { size: A4; margin: 15mm; }
   </style>
 </head>
-<body>${body}</body>
+<body>${body}${appendix || ''}</body>
 </html>`;
 
   const printWindow = window.open('', '_blank');

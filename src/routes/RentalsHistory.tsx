@@ -7,6 +7,7 @@ import {
   calcRentalCharge,
   buildContractHtml,
   printContractHtml,
+  buildPhotoAppendixHtml,
   overdueHours,
   formatOverdue,
 } from '@/lib/rental';
@@ -87,7 +88,7 @@ const RentalsHistory: Component = () => {
         acceptedAt: r.accepted_at,
         provider: authState.provider,
       });
-    printContractHtml(html, r.rental_id);
+    printContractHtml(html, r.rental_id, buildPhotoAppendixHtml(r.items || [], r.rental_id));
   };
 
   return (
