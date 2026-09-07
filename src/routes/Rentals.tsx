@@ -330,8 +330,8 @@ const Rentals: Component = () => {
       </div>
 
       {/* ============ Modal สัญญา ============ */}
-      <Modal isOpen={contractOpen()} onClose={() => setContractOpen(false)} title="สัญญาเช่าทรัพย์สิน" size="xl">
-        <div class="max-h-[70vh] overflow-y-auto pr-1">
+      <Modal isOpen={contractOpen()} onClose={() => setContractOpen(false)} title="สัญญาเช่าทรัพย์สิน" size="4xl">
+        <div class="max-h-[78vh] overflow-y-auto px-2 sm:px-6">
           <div innerHTML={contractHtml()} />
         </div>
         <div class="flex justify-end gap-2 mt-4 pt-3 border-t">

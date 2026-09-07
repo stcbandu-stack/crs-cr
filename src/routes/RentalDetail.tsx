@@ -390,9 +390,9 @@ const RentalDetail: Component = () => {
               isOpen={contractOpen()}
               onClose={() => setContractOpen(false)}
               title="สัญญาเช่าทรัพย์สิน"
-              size="xl"
+              size="4xl"
             >
-              <div class="max-h-[70vh] overflow-y-auto pr-1">
+              <div class="max-h-[78vh] overflow-y-auto px-2 sm:px-6">
                 <div innerHTML={contractStyleTag + contractBody()} />
               </div>
               <div class="flex justify-end mt-4 pt-3 border-t">
