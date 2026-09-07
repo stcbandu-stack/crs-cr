@@ -9,7 +9,12 @@ import type { ProviderInfo, RentalBilledUnit } from './types';
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-export const RENTAL_CONTRACT_VERSION = 'v3'; // v3: เปลี่ยนเป็นคิดค่าเช่ารายวันล้วน ไม่คิดตามชั่วโมงแล้ว
+export const RENTAL_CONTRACT_VERSION = 'v4';
+// v3: เปลี่ยนเป็นคิดค่าเช่ารายวันล้วน ไม่คิดตามชั่วโมงแล้ว
+// v4: ข้อ 3 เพิ่มเรื่องหัก ณ ที่จ่าย 5% (ท.ป.4/2528 ข้อ 6) + ตารางยอดชำระสุทธิ — CRS ไม่จด VAT
+
+/** อัตราหัก ณ ที่จ่ายค่าเช่าทรัพย์สิน เมื่อผู้จ่ายเป็นนิติบุคคล */
+export const WHT_RATE = 0.05;
 
 export interface RentalCharge {
   unit: RentalBilledUnit;
@@ -105,6 +110,9 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
     .map((line) => escapeHtml(String(line)))
     .join(' · ');
 
+  const wht = roundBaht(ctx.totalPrice * WHT_RATE);
+  const netPayable = roundBaht(ctx.totalPrice - wht);
+
   const itemRows = ctx.items
     .map(
       (item, i) => `
@@ -173,12 +181,24 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
       ให้คิดค่าเช่าเต็มจำนวนหนึ่งวันสำหรับวันนั้น และนับรวมวันที่รับและวันที่คืนเป็นวันเช่าด้วยทั้งสองวัน
     </p>
 
-    <h2>ข้อ 3 ค่าเช่าและการชำระเงิน</h2>
+    <h2>ข้อ 3 ค่าเช่า การชำระเงิน และภาษีหัก ณ ที่จ่าย</h2>
     <p>
       ผู้เช่าตกลงชำระค่าเช่าเป็นจำนวนเงินทั้งสิ้น <strong>${ctx.totalPrice.toLocaleString()} บาท</strong>
       ให้แก่ผู้ให้เช่าตามที่ผู้ให้เช่าเรียกเก็บ หากผู้เช่าใช้ทรัพย์สินเกินกำหนดระยะเวลาตามข้อ 2
       ผู้เช่าตกลงชำระค่าเช่าสำหรับระยะเวลาส่วนที่เกินตามหลักเกณฑ์การคำนวณในข้อ 2 เพิ่มเติมจากค่าเช่าข้างต้น
     </p>
+    <p>
+      ค่าเช่าข้างต้นไม่มีภาษีมูลค่าเพิ่ม เนื่องจากผู้ให้เช่ามิได้เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม
+      กรณีผู้เช่าเป็นนิติบุคคล ผู้เช่ามีหน้าที่หักภาษีเงินได้ ณ ที่จ่ายในอัตราร้อยละ 5 ของค่าเช่า
+      ตามคำสั่งกรมสรรพากรที่ ท.ป.4/2528 ข้อ 6 ประกอบประมวลรัษฎากร มาตรา 3 เตรส
+      และต้องออกหนังสือรับรองการหักภาษี ณ ที่จ่าย (แบบ 50 ทวิ) ให้แก่ผู้ให้เช่าภายในกำหนดเวลาตามกฎหมาย
+      โดยให้ถือว่าจำนวนเงินที่หักไว้ดังกล่าวเป็นการชำระค่าเช่าส่วนนั้นแล้ว
+    </p>
+    <table class="pay">
+      <tr><td>ค่าเช่าตามสัญญา</td><td class="num">${ctx.totalPrice.toLocaleString()}</td></tr>
+      <tr><td>หัก ภาษี ณ ที่จ่าย 5% (กรณีผู้เช่าเป็นนิติบุคคล)</td><td class="num">- ${wht.toLocaleString()}</td></tr>
+      <tr><td><strong>ยอดชำระสุทธิ</strong></td><td class="num"><strong>${netPayable.toLocaleString()}</strong></td></tr>
+    </table>
 
     <h2>ข้อ 4 การส่งมอบและสภาพทรัพย์สิน</h2>
     <p>
@@ -304,6 +324,7 @@ const CONTRACT_STYLE = `
   .contract th, .contract td { border: 1px solid #999; padding: 6px 8px; }
   .contract th { background: #f1f5f9; }
   .contract .num { text-align: right; }
+  .contract table.pay { width: auto; min-width: 360px; margin-left: auto; }
   .contract .accept { margin-top: 24px; border: 1px solid #333; padding: 12px 14px; background: #fafafa; }
   .contract .accept.pending { border-style: dashed; color: #555; }
   .contract .accept-title { font-weight: bold; margin-bottom: 6px; }
