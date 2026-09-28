@@ -327,7 +327,17 @@ const History: Component = () => {
               <For each={order.paginatedHistory()}>
                 {(job) => (
                   <tr class="border-b hover:bg-gray-50">
-                    <td class="p-3 font-mono font-bold text-blue-600">{job.job_id}</td>
+                    <td class="p-3 font-mono font-bold text-blue-600">
+                      {job.job_id}
+                      <Show when={job.printed_at}>
+                        <div
+                          class="mt-1 inline-block bg-green-100 text-green-700 border border-green-200 rounded-full px-2 py-0.5 text-[10px] font-sans font-bold whitespace-nowrap"
+                          title={`ออกเอกสารเมื่อ ${new Date(job.printed_at!).toLocaleString('th-TH')}`}
+                        >
+                          ✅ ออกแล้ว {formatDate(job.printed_at!)}
+                        </div>
+                      </Show>
+                    </td>
                     <td class="p-3">{formatDate(job.created_at)}</td>
                     <td class="p-3">{job.customer_name}</td>
                     <td class="p-3">{job.event_name}</td>
@@ -381,6 +391,19 @@ const History: Component = () => {
                             <span class="w-2 h-2 rounded-full bg-teal-600" />
                           </Show>
                         </button>
+                        <Show when={isAdmin()}>
+                          <button
+                            onClick={() => order.toggleJobPrinted(job)}
+                            class={`px-3 py-1 rounded text-xs transition flex items-center gap-1 border ${
+                              job.printed_at
+                                ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                                : 'bg-gray-50 text-gray-600 border-gray-300 hover:bg-gray-100'
+                            }`}
+                            title={job.printed_at ? 'กดเพื่อยกเลิกมาร์ค' : 'มาร์คว่าออกเอกสารแล้ว'}
+                          >
+                            {job.printed_at ? '✅ ออกแล้ว' : '☐ ออกเอกสาร'}
+                          </button>
+                        </Show>
                         <Show when={isAdmin()}>
                           <button
                             onClick={() => {

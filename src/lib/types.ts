@@ -68,6 +68,7 @@ export interface JobOrder {
   status: JobStatus;
   images?: string[];
   drive_url?: string;
+  printed_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

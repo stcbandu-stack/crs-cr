@@ -372,6 +372,24 @@ const updateJobDriveUrl = async (jobId: string, driveUrl: string): Promise<boole
   return true;
 };
 
+const toggleJobPrinted = async (job: JobOrder): Promise<boolean> => {
+  const printedAt = job.printed_at ? null : new Date().toISOString();
+
+  const { error } = await supabase
+    .from('job_orders')
+    .update({ printed_at: printedAt })
+    .eq('job_id', job.job_id);
+
+  if (error) {
+    showToast(error.message, 'error');
+    return false;
+  }
+
+  showToast(printedAt ? 'มาร์คว่าออกเอกสารแล้ว' : 'ยกเลิกมาร์คแล้ว');
+  await fetchHistory();
+  return true;
+};
+
 // ============ Job Images ============
 
 const JOB_IMAGE_BUCKET = 'job-images';
@@ -557,6 +575,7 @@ export const useOrder = () => ({
   printJob,
   updateJobStatus,
   updateJobDriveUrl,
+  toggleJobPrinted,
   uploadJobImages,
   removeJobImage,
 
