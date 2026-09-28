@@ -3,7 +3,7 @@ import { Router, Route, Navigate, useNavigate } from '@solidjs/router';
 import { authState, initializeAuth, logout, isAuthenticated, userDisplayName, updateDisplayName } from '@/store/auth';
 import { showToast } from '@/store/ui';
 import { Toast, ConfirmModal, Button } from '@/components';
-import { Login, Dashboard, Order, History, JobDetail, Inventory, InventoryLogs, InventoryDashboard, InventoryReport, Customers, Services, Claims, ClaimsDashboard, Rentals, RentalsHistory, RentalDetail, RentalAssets, SessionsMonitor } from '@/routes';
+import { Login, Dashboard, Order, History, JobDetail, Inventory, InventoryLogs, InventoryDashboard, InventoryReport, Customers, Services, Claims, ClaimsDashboard, Rentals, RentalsHistory, RentalDetail, RentalAssets, SessionsMonitor, SalesDashboard } from '@/routes';
 
 // Layout Component with Nav
 const Layout: Component<{ children?: any }> = (props) => {
@@ -95,6 +95,7 @@ const App: Component = () => {
         <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
         <Route path="/order" component={() => <ProtectedRoute component={Order} />} />
         <Route path="/history" component={() => <ProtectedRoute component={History} />} />
+        <Route path="/history/dashboard" component={() => <ProtectedRoute component={SalesDashboard} />} />
         <Route path="/history/:id" component={() => <ProtectedRoute component={JobDetail} />} />
         <Route path="/inventory" component={() => <ProtectedRoute component={Inventory} />} />
         <Route path="/inventory/logs" component={() => <ProtectedRoute component={InventoryLogs} />} />

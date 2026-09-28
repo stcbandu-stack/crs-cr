@@ -115,6 +115,20 @@ const Dashboard: Component = () => {
           </Card>
         </Show>
 
+        {/* แดชบอร์ดยอดสั่งงาน */}
+        <Show when={isAdmin()}>
+          <Card
+            class="min-h-[200px] flex flex-col justify-center items-center text-center gap-4 hover:scale-105 transition-transform border-2 border-emerald-100 hover:border-emerald-500 hover:bg-emerald-50"
+            onClick={() => navigate('/history/dashboard')}
+          >
+            <div class="text-6xl mb-2">📈</div>
+            <div>
+              <h3 class="text-2xl font-bold text-gray-800">แดชบอร์ดยอดสั่งงาน</h3>
+              <p class="text-gray-500 mt-1">ลูกค้า/สาขาไหน สั่งอะไร มูลค่าเท่าไหร่</p>
+            </div>
+          </Card>
+        </Show>
+
         {/* อุปกรณ์ที่ล็อกอินอยู่ */}
         <Show when={isAdmin()}>
           <Card

@@ -17,3 +17,4 @@ export { default as RentalsHistory } from './RentalsHistory';
 export { default as RentalDetail } from './RentalDetail';
 export { default as RentalAssets } from './RentalAssets';
 export { default as SessionsMonitor } from './SessionsMonitor';
+export { default as SalesDashboard } from './SalesDashboard';
