@@ -124,7 +124,10 @@ export interface RentalItem {
   line_total: number;
   handover_images: string[];
   return_images: string[];
+  /** วันที่รับคืนจริง — คีย์ย้อนหลังได้ */
   returned_at?: string | null;
+  /** เวลาที่กดบันทึกรับคืนจริง (เวลาเซิร์ฟเวอร์ ตั้งโดย trigger) */
+  returned_recorded_at?: string | null;
   returned_by?: string | null;
   return_note?: string | null;
   /** ค่าปรับ/ค่าเสียหายที่เรียกเก็บกรณีทรัพย์สินชำรุด (ป.พ.พ. ม.562) — 0 = ไม่มี */

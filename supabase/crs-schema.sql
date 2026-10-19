@@ -176,15 +176,35 @@ create table public.crs_rental_items (
   line_total numeric not null default 0,
   handover_images jsonb not null default '[]'::jsonb,
   return_images jsonb not null default '[]'::jsonb,
-  returned_at timestamptz,
+  returned_at timestamptz,          -- actual return date (staff may key it in later)
   returned_by text,
   return_note text,
   created_at timestamptz not null default now(),
-  damage_amount numeric not null default 0
+  damage_amount numeric not null default 0,
+  returned_recorded_at timestamptz  -- server time the return was keyed in; set by trigger
 );
 create index crs_rental_items_rental_id_idx on public.crs_rental_items (rental_id);
 create index crs_rental_items_asset_id_idx on public.crs_rental_items (asset_id);
 create index crs_rental_items_open_idx on public.crs_rental_items (asset_id) where returned_at is null;
+
+-- Return evidence: returned_at can be backdated to the real return day, so the
+-- moment it was actually keyed in is stamped from the server clock.
+create function crs_private.stamp_return_recorded_at() returns trigger
+language plpgsql set search_path = ''
+as $$
+begin
+  if old.returned_at is null and new.returned_at is not null then
+    new.returned_recorded_at := now();
+  else
+    new.returned_recorded_at := old.returned_recorded_at;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger crs_rental_items_stamp_return
+  before update on public.crs_rental_items
+  for each row execute function crs_private.stamp_return_recorded_at();
 
 -- ---------- Access: CRS members only ----------
 

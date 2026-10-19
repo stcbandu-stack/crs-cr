@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { showToast } from '@/store/ui';
 import { authState } from '@/store/auth';
 import { validateUploadFile } from '@/lib/image';
-import { generateJobIdPrefix } from '@/lib/utils';
+import { generateJobIdPrefix, toDateInput } from '@/lib/utils';
 import { calcRentalCharge, calcLineTotal, buildContractHtml, RENTAL_CONTRACT_VERSION } from '@/lib/rental';
 import type { Rental, RentalAsset, RentalItem } from '@/lib/types';
 
@@ -432,15 +432,22 @@ const removeItemImage = async (item: RentalItem, kind: ImageKind, url: string): 
 // ============ Return ============
 
 // รูปตอนคืนไม่บังคับ — งานแต่ละคนเยอะ ถ่ายไม่ทันทุกครั้งเป็นเรื่องปกติ
-const returnItem = async (item: RentalItem, note: string, damageAmount: number): Promise<boolean> => {
+// returnedOn = วันที่ของถึงมือจริง (YYYY-MM-DD) คีย์ย้อนหลังได้ — เวลาที่กดจริง trigger ใน DB เก็บไว้ให้เอง
+const returnItem = async (
+  item: RentalItem,
+  note: string,
+  damageAmount: number,
+  returnedOn: string
+): Promise<boolean> => {
   if (item.returned_at) return false;
 
   const photos = imagesOf(item, 'return');
-  const now = new Date().toISOString();
+  const isToday = returnedOn === toDateInput(new Date());
+  const returnedAt = isToday ? new Date().toISOString() : new Date(`${returnedOn}T00:00:00`).toISOString();
   const { error } = await supabase
     .from('crs_rental_items')
     .update({
-      returned_at: now,
+      returned_at: returnedAt,
       returned_by: authState.profile?.display_name || null,
       return_note: note || null,
       damage_amount: damageAmount || 0,
@@ -458,7 +465,7 @@ const returnItem = async (item: RentalItem, note: string, damageAmount: number):
   if (photos.length > 0) {
     await supabase
       .from('crs_rental_assets')
-      .update({ last_condition_image: photos[photos.length - 1], last_condition_at: now })
+      .update({ last_condition_image: photos[photos.length - 1], last_condition_at: returnedAt })
       .eq('id', item.asset_id);
   }
 

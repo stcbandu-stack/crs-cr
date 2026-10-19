@@ -3,7 +3,7 @@ import { useNavigate, useParams } from '@solidjs/router';
 import { useRentals, type ImageKind } from '@/composables/useRentals';
 import { authState } from '@/store/auth';
 import { showToast, openConfirm } from '@/store/ui';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, toDateInput } from '@/lib/utils';
 import {
   printContractHtml,
   buildPhotoAppendixHtml,
@@ -22,6 +22,13 @@ const thDateTime = (value?: string | null): string =>
 
 const thDate = (value?: string | null): string =>
   value ? new Date(value).toLocaleDateString('th-TH', { dateStyle: 'medium' }) : '-';
+
+// คีย์รับคืนย้อนหลัง → โชว์วันคืนจริง พร้อมเวลาที่กดบันทึกจริงต่อท้าย ไม่ให้ดูเหมือนคืนตอนกด
+const returnedLabel = (item: RentalItem): string => {
+  const recorded = item.returned_recorded_at;
+  if (!recorded || thDate(recorded) === thDate(item.returned_at)) return thDateTime(item.returned_at);
+  return `${thDate(item.returned_at)} (บันทึกในระบบ ${thDateTime(recorded)})`;
+};
 
 // แปลงเป็น WebP + ย่อขนาด แล้วรวมข้อความของไฟล์ที่ไม่ผ่าน
 const prepareAll = async (files: File[]): Promise<{ ready: File[]; errors: string[] }> => {
@@ -48,6 +55,8 @@ const RentalDetail: Component = () => {
   const [returningId, setReturningId] = createSignal('');
   const [notes, setNotes] = createSignal<Record<string, string>>({});
   const [damages, setDamages] = createSignal<Record<string, string>>({});
+  const [returnDates, setReturnDates] = createSignal<Record<string, string>>({});
+  const today = toDateInput(new Date());
   const [contractOpen, setContractOpen] = createSignal(false);
 
   onMount(() => {
@@ -127,14 +136,16 @@ const RentalDetail: Component = () => {
   const handleReturn = (item: RentalItem) => {
     const hasPhotos = (item.return_images || []).length > 0;
     const damageAmount = parseFloat(damages()[item.id] || '') || 0;
+    const returnedOn = returnDates()[item.id] || today;
     const warnings = [
+      returnedOn !== today ? `รับคืนจริงวันที่ ${thDate(returnedOn)}` : '',
       hasPhotos ? 'หลังรับคืนแล้วจะแก้ไขรูปไม่ได้' : '',
       damageAmount > 0 ? `เรียกเก็บค่าเสียหาย ${damageAmount.toLocaleString()} บาท` : '',
     ].filter(Boolean);
     const warning = warnings.length ? ` ${warnings.join(' · ')}` : '';
     openConfirm(`ยืนยันรับคืน "${item.asset_name}"?${warning}`, async () => {
       setReturningId(item.id);
-      await rental.returnItem(item, notes()[item.id] || '', damageAmount);
+      await rental.returnItem(item, notes()[item.id] || '', damageAmount, returnedOn);
       setReturningId('');
     });
   };
@@ -323,7 +334,7 @@ const RentalDetail: Component = () => {
                         }
                       >
                         <span class="text-xs px-2 py-1 rounded bg-green-100 text-green-700">
-                          ✅ รับคืน {thDateTime(item.returned_at)}
+                          ✅ รับคืน {returnedLabel(item)}
                           {item.returned_by ? ` โดย ${item.returned_by}` : ''}
                         </span>
                       </Show>
@@ -356,6 +367,19 @@ const RentalDetail: Component = () => {
                             value={notes()[item.id] || ''}
                             onInput={(e) =>
                               setNotes((prev) => ({ ...prev, [item.id]: e.currentTarget.value }))
+                            }
+                            class="w-full border border-gray-300 p-2 rounded"
+                          />
+                        </div>
+                        <div class="w-full sm:w-44">
+                          <label class="block text-sm font-bold mb-1">วันที่รับคืนจริง</label>
+                          <input
+                            type="date"
+                            min={toDateInput(new Date(r().start_at))}
+                            max={today}
+                            value={returnDates()[item.id] || today}
+                            onInput={(e) =>
+                              setReturnDates((prev) => ({ ...prev, [item.id]: e.currentTarget.value }))
                             }
                             class="w-full border border-gray-300 p-2 rounded"
                           />

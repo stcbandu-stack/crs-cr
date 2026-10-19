@@ -92,3 +92,9 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 export function cn(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ');
 }
+
+// <input type="date"> ต้องการรูปแบบ YYYY-MM-DD ตามเวลาเครื่อง
+export const toDateInput = (date: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};

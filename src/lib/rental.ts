@@ -9,9 +9,11 @@ import type { ProviderInfo, RentalBilledUnit } from './types';
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-export const RENTAL_CONTRACT_VERSION = 'v4';
+export const RENTAL_CONTRACT_VERSION = 'v5';
 // v3: เปลี่ยนเป็นคิดค่าเช่ารายวันล้วน ไม่คิดตามชั่วโมงแล้ว
 // v4: ข้อ 3 เพิ่มหมายเหตุหัก ณ ที่จ่าย 5% แบบดอกจัน (สั้น ๆ ให้บัญชีดู) — CRS ไม่จด VAT
+// v5: รองรับการคีย์ย้อนหลัง — วันทำสัญญา = วันเริ่มเช่าถ้าคีย์ทีหลัง, ข้อ 8 นับวันรับคืนจริง,
+//     ข้อ 10 ยืนยันว่าตกลงกันตั้งแต่วันทำสัญญาแม้บันทึกเข้าระบบภายหลัง
 
 /** อัตราหัก ณ ที่จ่ายค่าเช่าทรัพย์สิน เมื่อผู้จ่ายเป็นนิติบุคคล */
 export const WHT_RATE = 0.05;
@@ -101,6 +103,13 @@ const thDateTime = (value?: string): string =>
 const thDate = (value?: string): string =>
   value ? new Date(value).toLocaleDateString('th-TH', { dateStyle: 'long' }) : '-';
 
+/** วันทำสัญญา = วันที่ตกลงและส่งมอบของกันจริง — คีย์ย้อนหลังเมื่อไหร่ก็คือวันเริ่มเช่า
+ *  ส่วนเวลาที่กดยอมรับในระบบ (acceptedAt) แสดงตามจริงเสมอ ห้ามย้อน เพราะต้องตรงกับ log ของ DB */
+const contractDate = (startAt: string, acceptedAt?: string): string => {
+  const accepted = acceptedAt || new Date().toISOString();
+  return new Date(startAt).getTime() < new Date(accepted).getTime() ? startAt : accepted;
+};
+
 /** เนื้อสัญญาล้วนๆ ใช้ได้ทั้งใน modal และในหน้าพิมพ์ */
 export const buildContractHtml = (ctx: RentalContractContext): string => {
   const prov = ctx.provider;
@@ -130,7 +139,7 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
     <div class="accept">
       <div class="accept-title">บันทึกการยอมรับสัญญาทางอิเล็กทรอนิกส์</div>
       <p>ผู้เช่าโดย <strong>${escapeHtml(ctx.acceptedByName)}</strong> ได้แสดงเจตนายอมรับข้อตกลงตามสัญญาฉบับนี้ผ่านระบบ</p>
-      <p>เมื่อวันที่ ${thDateTime(ctx.acceptedAt)} · สัญญาเลขที่ ${escapeHtml(ctx.rentalId || '-')} · ฉบับ ${RENTAL_CONTRACT_VERSION}</p>
+      <p>บันทึกในระบบเมื่อวันที่ ${thDateTime(ctx.acceptedAt)} · สัญญาเลขที่ ${escapeHtml(ctx.rentalId || '-')} · ฉบับ ${RENTAL_CONTRACT_VERSION}</p>
       <p class="fineprint">
         บันทึกอิเล็กทรอนิกส์นี้ใช้แทนการลงลายมือชื่อ และมีผลผูกพันคู่สัญญาตามพระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์
         พ.ศ. 2544 มาตรา 7 มาตรา 8 และมาตรา 9
@@ -147,7 +156,7 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
     <h1>สัญญาเช่าทรัพย์สิน</h1>
     <p class="subtitle">
       สัญญาเลขที่ ${escapeHtml(ctx.rentalId || '(ยังไม่ออกเลขที่)')}
-      · ทำขึ้นเมื่อวันที่ ${thDate(ctx.acceptedAt || new Date().toISOString())}
+      · ทำขึ้นเมื่อวันที่ ${thDate(contractDate(ctx.startAt, ctx.acceptedAt))}
     </p>
 
     <p class="party">
@@ -231,7 +240,7 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
       เมื่อสัญญาเช่าสิ้นสุดลง ผู้เช่าต้องส่งคืนทรัพย์สินที่เช่าแก่ผู้ให้เช่า ณ สถานที่ที่ผู้ให้เช่ากำหนด
       ในสภาพเดียวกับที่ได้รับมอบไป เว้นแต่ความเสื่อมสภาพอันเกิดแต่การใช้ทรัพย์สินโดยชอบ
       ตามประมวลกฎหมายแพ่งและพาณิชย์ มาตรา 561
-      การส่งคืนถือว่าสมบูรณ์เมื่อผู้ให้เช่าได้บันทึกการรับคืนไว้ในระบบ
+      การส่งคืนถือว่าสมบูรณ์ ณ วันที่ผู้ให้เช่าได้รับทรัพย์สินคืนจริงตามที่บันทึกไว้ในระบบ
       กรณีผู้ให้เช่าบันทึกภาพถ่ายสภาพทรัพย์สิน ณ วันรับคืนไว้ในระบบ ให้ถือภาพถ่ายดังกล่าวเป็นหลักฐานการตรวจรับคืนทรัพย์สิน
     </p>
 
@@ -250,6 +259,10 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
       เลขที่สัญญา และฉบับของข้อความสัญญา เป็นพยานหลักฐานแห่งการแสดงเจตนาดังกล่าว
       ทั้งนี้ตามพระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์ พ.ศ. 2544 มาตรา 7 มาตรา 8 และมาตรา 9
       คู่สัญญาตกลงจะไม่โต้แย้งความสมบูรณ์หรือการบังคับใช้ของสัญญาฉบับนี้ด้วยเหตุเพียงว่าอยู่ในรูปข้อมูลอิเล็กทรอนิกส์
+    </p>
+    <p>
+      ในกรณีที่การยอมรับสัญญาได้บันทึกเข้าสู่ระบบภายหลังวันทำสัญญา คู่สัญญายืนยันว่าได้ตกลงกันตามข้อความในสัญญาฉบับนี้
+      และได้ส่งมอบทรัพย์สินที่เช่ากันแล้วตั้งแต่วันทำสัญญา โดยให้สัญญาฉบับนี้มีผลใช้บังคับตั้งแต่วันทำสัญญาเป็นต้นไป
     </p>
 
     <h2>ข้อ 11 กฎหมายที่ใช้บังคับ</h2>
@@ -290,7 +303,7 @@ export const buildPhotoAppendixHtml = (items: RentalPhotoItem[], rentalId?: stri
       return `<div class="photo-item">
       <h2>${escapeHtml(item.asset_name)}</h2>
       ${photoGrid('สภาพตอนส่งมอบ', handover)}
-      ${photoGrid(`สภาพตอนรับคืน${item.returned_at ? ` (${thDateTime(item.returned_at)})` : ''}`, ret)}
+      ${photoGrid(`สภาพตอนรับคืน${item.returned_at ? ` (${thDate(item.returned_at)})` : ''}`, ret)}
     </div>`;
     })
     .filter(Boolean)

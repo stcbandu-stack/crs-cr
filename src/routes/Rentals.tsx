@@ -3,7 +3,7 @@ import { useNavigate } from '@solidjs/router';
 import { useRentals } from '@/composables/useRentals';
 import { authState, isAdmin } from '@/store/auth';
 import { showToast } from '@/store/ui';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, toDateInput } from '@/lib/utils';
 import {
   calcRentalCharge,
   calcLineTotal,
@@ -12,12 +12,6 @@ import {
   contractStyleTag,
 } from '@/lib/rental';
 import { Button, Input, Modal } from '@/components';
-
-// <input type="date"> ต้องการรูปแบบ YYYY-MM-DD ตามเวลาเครื่อง
-const toDateInput = (date: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-};
 
 const thDate = (value: string): string => new Date(value).toLocaleDateString('th-TH', { dateStyle: 'medium' });
 
