@@ -12,14 +12,13 @@
 // via pg_net WITHOUT a JWT, and authenticates itself with the x-notify-secret header.
 //
 // Required Edge Function secrets (Dashboard → Edge Functions → Secrets):
-//   CRS_LINE_GROUP_ID         — target group (starts with "C")
 //   CRS_LINE_CHANNEL_SECRET   — Messaging API channel secret of @stccr
-//   CRS_LINE_CHANNEL_ID       — optional, defaults to @stccr's channel below
+//   LINE_CHANNEL_ID           — its Messaging API channel ID
+//   LINE_GROUP_ID             — target group (starts with "C")
+// (A CRS_-prefixed LINE_CHANNEL_ID / LINE_GROUP_ID takes precedence if set.)
 
 const LINE_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
 const LINE_TOKEN_URL = 'https://api.line.me/oauth2/v3/token';
-// Messaging API channel of the Pro OA "อีซูซุสงวนไทย" (@stccr) — not a secret.
-const DEFAULT_CHANNEL_ID = '2004111121';
 
 const sbUrl = Deno.env.get('SUPABASE_URL');
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -45,9 +44,9 @@ const isAuthorized = async (req: Request): Promise<boolean> => {
 // even though the channel sits under a LINE Developers provider we can't open
 // in the console.
 const getAccessToken = async (): Promise<string | null> => {
-  const id = Deno.env.get('CRS_LINE_CHANNEL_ID') ?? DEFAULT_CHANNEL_ID;
+  const id = Deno.env.get('CRS_LINE_CHANNEL_ID') ?? Deno.env.get('LINE_CHANNEL_ID');
   const secret = Deno.env.get('CRS_LINE_CHANNEL_SECRET');
-  if (!secret) return null;
+  if (!id || !secret) return null;
   const res = await fetch(LINE_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -268,9 +267,9 @@ Deno.serve(async (req) => {
   }
 
   const token = await getAccessToken();
-  const groupId = Deno.env.get('CRS_LINE_GROUP_ID');
+  const groupId = Deno.env.get('CRS_LINE_GROUP_ID') ?? Deno.env.get('LINE_GROUP_ID');
   if (!token || !groupId) {
-    console.error('Missing CRS_LINE_CHANNEL_SECRET or CRS_LINE_GROUP_ID secret');
+    console.error('Missing LINE channel credentials or LINE_GROUP_ID secret');
     return new Response('Not configured', { status: 500 });
   }
 
