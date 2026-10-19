@@ -146,7 +146,7 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
           ? `ผู้เช่าโดย <strong>${escapeHtml(ctx.acceptedByName)}</strong> ได้ตกลงตามข้อตกลงในสัญญาฉบับนี้เมื่อวันที่ ${thDate(signedOn)} และผู้ให้เช่าได้บันทึกเข้าสู่ระบบภายหลัง`
           : `ผู้เช่าโดย <strong>${escapeHtml(ctx.acceptedByName)}</strong> ได้แสดงเจตนายอมรับข้อตกลงตามสัญญาฉบับนี้ผ่านระบบ`
       }</p>
-      <p>บันทึกในระบบเมื่อวันที่ ${thDateTime(ctx.acceptedAt)} · สัญญาเลขที่ ${escapeHtml(ctx.rentalId || '-')} · ฉบับ ${RENTAL_CONTRACT_VERSION}</p>
+      <p>${keyedLate ? '' : `บันทึกในระบบเมื่อวันที่ ${thDateTime(ctx.acceptedAt)} · `}สัญญาเลขที่ ${escapeHtml(ctx.rentalId || '-')} · ฉบับ ${RENTAL_CONTRACT_VERSION}</p>
       <p class="fineprint">
         บันทึกอิเล็กทรอนิกส์นี้ใช้แทนการลงลายมือชื่อ และมีผลผูกพันคู่สัญญาตามพระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์
         พ.ศ. 2544 มาตรา 7 มาตรา 8 และมาตรา 9
