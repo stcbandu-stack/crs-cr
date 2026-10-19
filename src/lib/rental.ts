@@ -134,11 +134,18 @@ export const buildContractHtml = (ctx: RentalContractContext): string => {
     )
     .join('');
 
+  // คีย์ย้อนหลัง = ผู้ให้เช่ากรอกให้ทีหลัง ผู้เช่าไม่ได้กดยอมรับในระบบเอง — เขียนตามที่เกิดขึ้นจริง
+  const signedOn = contractDate(ctx.startAt, ctx.acceptedAt);
+  const keyedLate = thDate(signedOn) !== thDate(ctx.acceptedAt || new Date().toISOString());
   const acceptanceBlock = ctx.acceptedByName
     ? `
     <div class="accept">
       <div class="accept-title">บันทึกการยอมรับสัญญาทางอิเล็กทรอนิกส์</div>
-      <p>ผู้เช่าโดย <strong>${escapeHtml(ctx.acceptedByName)}</strong> ได้แสดงเจตนายอมรับข้อตกลงตามสัญญาฉบับนี้ผ่านระบบ</p>
+      <p>${
+        keyedLate
+          ? `ผู้เช่าโดย <strong>${escapeHtml(ctx.acceptedByName)}</strong> ได้ตกลงตามข้อตกลงในสัญญาฉบับนี้เมื่อวันที่ ${thDate(signedOn)} และผู้ให้เช่าได้บันทึกเข้าสู่ระบบภายหลัง`
+          : `ผู้เช่าโดย <strong>${escapeHtml(ctx.acceptedByName)}</strong> ได้แสดงเจตนายอมรับข้อตกลงตามสัญญาฉบับนี้ผ่านระบบ`
+      }</p>
       <p>บันทึกในระบบเมื่อวันที่ ${thDateTime(ctx.acceptedAt)} · สัญญาเลขที่ ${escapeHtml(ctx.rentalId || '-')} · ฉบับ ${RENTAL_CONTRACT_VERSION}</p>
       <p class="fineprint">
         บันทึกอิเล็กทรอนิกส์นี้ใช้แทนการลงลายมือชื่อ และมีผลผูกพันคู่สัญญาตามพระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์
