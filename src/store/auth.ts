@@ -75,17 +75,26 @@ export const login = async (email: string, password: string): Promise<{ success:
 
     const userId = data.session.user.id;
 
+    // The auth project is shared with other company apps — only accounts
+    // with a crs_profiles row are CRS users.
+    const { data: member } = await supabase
+      .from('crs_profiles')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!member) throw new Error('บัญชีนี้ไม่มีสิทธิ์เข้าใช้ระบบ CRS');
+
     // Register or refresh this device's session row — purely for the admin
     // device monitor (/sessions), never a gate on logging in.
     const { data: existingSession } = await supabase
-      .from('user_sessions')
+      .from('crs_user_sessions')
       .select('id')
       .eq('user_id', userId)
       .eq('device_id', currentDeviceId)
       .maybeSingle();
 
     if (existingSession) {
-      await supabase.from('user_sessions').update({ last_active: new Date().toISOString() }).eq('id', existingSession.id);
+      await supabase.from('crs_user_sessions').update({ last_active: new Date().toISOString() }).eq('id', existingSession.id);
     } else {
       await registerDeviceSession(userId);
     }
@@ -104,7 +113,7 @@ export const login = async (email: string, password: string): Promise<{ success:
 
 export const logout = async (): Promise<void> => {
   if (authState.session) {
-    await supabase.from('user_sessions')
+    await supabase.from('crs_user_sessions')
       .delete()
       .eq('user_id', authState.session.user.id)
       .eq('device_id', currentDeviceId);
@@ -120,7 +129,7 @@ export const logout = async (): Promise<void> => {
 // ============ Helper Functions ============
 
 const registerDeviceSession = async (userId: string): Promise<void> => {
-  await supabase.from('user_sessions').insert({
+  await supabase.from('crs_user_sessions').insert({
     user_id: userId,
     device_id: currentDeviceId,
     device_name: getDeviceName(),
@@ -137,7 +146,7 @@ const fetchUserProfile = async (): Promise<void> => {
   if (!authState.session) return;
 
   const { data } = await supabase
-    .from('profiles')
+    .from('crs_profiles')
     .select('*')
     .eq('id', authState.session.user.id)
     .single();
@@ -158,7 +167,7 @@ const checkSessionValidity = async (): Promise<boolean> => {
   if (!authState.session) return false;
 
   const { data } = await supabase
-    .from('user_sessions')
+    .from('crs_user_sessions')
     .select('id')
     .eq('user_id', authState.session.user.id)
     .eq('device_id', currentDeviceId)
@@ -173,9 +182,9 @@ const checkSessionValidity = async (): Promise<boolean> => {
 
 const loadInitialData = async (): Promise<void> => {
   const [providerResult, servicesResult, customersResult] = await Promise.all([
-    supabase.from('provider_info').select('*').single(),
-    supabase.from('services').select('*').order('service_name'),
-    supabase.from('customers').select('*').order('name'),
+    supabase.from('crs_provider_info').select('*').single(),
+    supabase.from('crs_services').select('*').order('service_name'),
+    supabase.from('crs_customers').select('*').order('name'),
   ]);
 
   setAuthState({
@@ -189,7 +198,7 @@ export const updateDisplayName = async (newName: string): Promise<boolean> => {
   if (!authState.profile) return false;
 
   const { error } = await supabase
-    .from('profiles')
+    .from('crs_profiles')
     .update({ display_name: newName })
     .eq('id', authState.profile.id);
 
@@ -203,7 +212,7 @@ export const updateDisplayName = async (newName: string): Promise<boolean> => {
 // ============ Service Actions ============
 
 export const addService = async (name: string, price: number): Promise<boolean> => {
-  const { error } = await supabase.from('services').insert({
+  const { error } = await supabase.from('crs_services').insert({
     service_name: name,
     unit_price: price,
   });
@@ -216,7 +225,7 @@ export const addService = async (name: string, price: number): Promise<boolean> 
 };
 
 export const updateServicePrice = async (id: string, price: number): Promise<boolean> => {
-  const { error } = await supabase.from('services').update({ unit_price: price }).eq('id', id);
+  const { error } = await supabase.from('crs_services').update({ unit_price: price }).eq('id', id);
   if (!error) {
     await loadInitialData();
     return true;
@@ -225,7 +234,7 @@ export const updateServicePrice = async (id: string, price: number): Promise<boo
 };
 
 export const deleteService = async (id: string): Promise<boolean> => {
-  const { error } = await supabase.from('services').delete().eq('id', id);
+  const { error } = await supabase.from('crs_services').delete().eq('id', id);
   if (!error) {
     await loadInitialData();
     return true;
@@ -237,13 +246,13 @@ export const deleteService = async (id: string): Promise<boolean> => {
 
 export const saveCustomer = async (customer: Partial<Customer>): Promise<boolean> => {
   if (customer.id) {
-    const { error } = await supabase.from('customers').update(customer).eq('id', customer.id);
+    const { error } = await supabase.from('crs_customers').update(customer).eq('id', customer.id);
     if (!error) {
       await loadInitialData();
       return true;
     }
   } else {
-    const { error } = await supabase.from('customers').insert(customer);
+    const { error } = await supabase.from('crs_customers').insert(customer);
     if (!error) {
       await loadInitialData();
       return true;
@@ -253,7 +262,7 @@ export const saveCustomer = async (customer: Partial<Customer>): Promise<boolean
 };
 
 export const deleteCustomer = async (id: string): Promise<boolean> => {
-  const { error } = await supabase.from('customers').delete().eq('id', id);
+  const { error } = await supabase.from('crs_customers').delete().eq('id', id);
   if (!error) {
     await loadInitialData();
     return true;

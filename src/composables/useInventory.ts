@@ -194,7 +194,7 @@ createEffect(() => {
 
 const fetchMaterials = async (): Promise<void> => {
   try {
-    const { data, error } = await supabase.from('materials').select('*');
+    const { data, error } = await supabase.from('crs_materials').select('*');
     if (error) throw error;
     setState('materials', data || []);
   } catch (e) {
@@ -206,7 +206,7 @@ const fetchMaterials = async (): Promise<void> => {
 const fetchLogs = async (): Promise<void> => {
   try {
     const { data, error } = await supabase
-      .from('material_logs')
+      .from('crs_material_logs')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(1000);
@@ -279,11 +279,11 @@ const saveMaterial = async (): Promise<boolean> => {
 
   try {
     if (modal.mode === 'add') {
-      const { data, error } = await supabase.from('materials').insert(payload).select().single();
+      const { data, error } = await supabase.from('crs_materials').insert(payload).select().single();
       if (error) throw error;
 
       if (data) {
-        await supabase.from('material_logs').insert({
+        await supabase.from('crs_material_logs').insert({
           material_id: data.id,
           action_type: 'CREATE',
           qty_change: parseFloat(String(materialData.remaining_qty || 0)),
@@ -294,7 +294,7 @@ const saveMaterial = async (): Promise<boolean> => {
         });
       }
     } else {
-      const { error } = await supabase.from('materials').update(payload).eq('id', materialData.id);
+      const { error } = await supabase.from('crs_materials').update(payload).eq('id', materialData.id);
       if (error) throw error;
     }
 
@@ -311,10 +311,10 @@ const saveMaterial = async (): Promise<boolean> => {
 
 const deleteMaterial = (id: string): void => {
   openConfirm('ต้องการลบรายการนี้ใช่ไหม?', async () => {
-    const { error } = await supabase.from('materials').update({ is_deleted: true }).eq('id', id);
+    const { error } = await supabase.from('crs_materials').update({ is_deleted: true }).eq('id', id);
 
     if (!error) {
-      await supabase.from('material_logs').insert({
+      await supabase.from('crs_material_logs').insert({
         material_id: id,
         action_type: 'DELETE',
         qty_change: 0,
@@ -388,7 +388,7 @@ const submitStockAction = async (): Promise<boolean> => {
 
   try {
     const { error } = await supabase
-      .from('materials')
+      .from('crs_materials')
       .update({
         remaining_qty: newBalance,
         total_in: newTotalIn,
@@ -398,7 +398,7 @@ const submitStockAction = async (): Promise<boolean> => {
 
     if (error) throw error;
 
-    await supabase.from('material_logs').insert({
+    await supabase.from('crs_material_logs').insert({
       material_id: material.id,
       action_type: type,
       qty_change: finalQtyChange,

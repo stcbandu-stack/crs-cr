@@ -17,7 +17,7 @@ const InventoryReport: Component = () => {
   const fetchMaterials = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('materials').select('*');
+      const { data, error } = await supabase.from('crs_materials').select('*');
       if (error) throw error;
       setMaterials(data || []);
     } catch (e) {

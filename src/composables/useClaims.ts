@@ -44,7 +44,7 @@ const [loading, setLoading] = createSignal(false);
 const fetchClaims = async (): Promise<void> => {
   setLoading(true);
   const { data, error } = await supabase
-    .from('claims')
+    .from('crs_claims')
     .select('*')
     .order('created_at', { ascending: false });
 
@@ -59,7 +59,7 @@ const fetchClaims = async (): Promise<void> => {
 
 const fetchEmployees = async (): Promise<void> => {
   const { data, error } = await supabase
-    .from('profiles')
+    .from('crs_profiles')
     .select('id, display_name')
     .neq('role', 'admin')
     .order('display_name');
@@ -70,7 +70,7 @@ const fetchEmployees = async (): Promise<void> => {
 };
 
 const submitClaim = async (input: ClaimFormInput): Promise<boolean> => {
-  const { error } = await supabase.from('claims').insert({
+  const { error } = await supabase.from('crs_claims').insert({
     job_id: input.jobId,
     customer_name: input.customerName,
     claim_type: input.claimType,
@@ -94,7 +94,7 @@ const submitClaim = async (input: ClaimFormInput): Promise<boolean> => {
 
 const resolveClaim = async (id: string, resolutionNote: string, responsibleName?: string): Promise<boolean> => {
   const { error } = await supabase
-    .from('claims')
+    .from('crs_claims')
     .update({
       status: 'resolved',
       resolution_note: resolutionNote || null,
@@ -115,7 +115,7 @@ const resolveClaim = async (id: string, resolutionNote: string, responsibleName?
 
 const reopenClaim = async (id: string): Promise<boolean> => {
   const { error } = await supabase
-    .from('claims')
+    .from('crs_claims')
     .update({ status: 'open', resolved_at: null, resolution_note: null })
     .eq('id', id);
 

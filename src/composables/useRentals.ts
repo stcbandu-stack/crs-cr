@@ -7,7 +7,7 @@ import { generateJobIdPrefix } from '@/lib/utils';
 import { calcRentalCharge, calcLineTotal, buildContractHtml, RENTAL_CONTRACT_VERSION } from '@/lib/rental';
 import type { Rental, RentalAsset, RentalItem } from '@/lib/types';
 
-const RENTAL_IMAGE_BUCKET = 'rental-images';
+const RENTAL_IMAGE_BUCKET = 'crs-rental-images';
 
 export type ImageKind = 'handover' | 'return';
 
@@ -45,7 +45,7 @@ const [loading, setLoading] = createSignal(false);
 // ============ Assets ============
 
 const fetchAssets = async (): Promise<void> => {
-  const { data, error } = await supabase.from('rental_assets').select('*');
+  const { data, error } = await supabase.from('crs_rental_assets').select('*');
 
   if (error) {
     console.error(error);
@@ -60,7 +60,7 @@ const fetchAssets = async (): Promise<void> => {
 };
 
 const addAsset = async (name: string, dailyRate: number): Promise<boolean> => {
-  const { error } = await supabase.from('rental_assets').insert({ name, daily_rate: dailyRate });
+  const { error } = await supabase.from('crs_rental_assets').insert({ name, daily_rate: dailyRate });
   if (error) {
     showToast('เพิ่มทรัพย์สินไม่สำเร็จ', 'error');
     return false;
@@ -70,7 +70,7 @@ const addAsset = async (name: string, dailyRate: number): Promise<boolean> => {
 };
 
 const updateAssetRate = async (id: string, dailyRate: number): Promise<boolean> => {
-  const { error } = await supabase.from('rental_assets').update({ daily_rate: dailyRate }).eq('id', id);
+  const { error } = await supabase.from('crs_rental_assets').update({ daily_rate: dailyRate }).eq('id', id);
   if (error) {
     showToast('บันทึกราคาไม่สำเร็จ', 'error');
     return false;
@@ -87,7 +87,7 @@ const updateAssetName = async (id: string, name: string): Promise<boolean> => {
     return false;
   }
 
-  const { error } = await supabase.from('rental_assets').update({ name: trimmed }).eq('id', id);
+  const { error } = await supabase.from('crs_rental_assets').update({ name: trimmed }).eq('id', id);
   if (error) {
     showToast('บันทึกชื่อไม่สำเร็จ', 'error');
     return false;
@@ -98,7 +98,7 @@ const updateAssetName = async (id: string, name: string): Promise<boolean> => {
 
 // ปิดการใช้งานแทนการลบ — ของที่เคยถูกเช่าไปแล้วยังต้องอ้างอิงได้จากใบเช่าเก่า
 const setAssetActive = async (id: string, isActive: boolean): Promise<boolean> => {
-  const { error } = await supabase.from('rental_assets').update({ is_active: isActive }).eq('id', id);
+  const { error } = await supabase.from('crs_rental_assets').update({ is_active: isActive }).eq('id', id);
   if (error) {
     showToast('อัปเดตสถานะไม่สำเร็จ', 'error');
     return false;
@@ -117,8 +117,8 @@ const sortItems = (rental: Rental): Rental => ({
 const fetchRentals = async (): Promise<void> => {
   setLoading(true);
   const { data, error } = await supabase
-    .from('rentals')
-    .select('*, items:rental_items(*)')
+    .from('crs_rentals')
+    .select('*, items:crs_rental_items(*)')
     .order('start_at', { ascending: false });
 
   if (error) {
@@ -192,7 +192,7 @@ const generateRentalId = async (): Promise<string> => {
   const prefix = `R${generateJobIdPrefix()}`;
 
   const { data } = await supabase
-    .from('rentals')
+    .from('crs_rentals')
     .select('rental_id')
     .ilike('rental_id', `${prefix}%`)
     .order('rental_id', { ascending: false })
@@ -258,7 +258,7 @@ const createRental = async (input: RentalFormInput): Promise<string | null> => {
   const acceptedByName = input.acceptedByName.trim();
   // accepted_at ปล่อยให้ DB ใส่ now() เอง — เวลาที่ใช้เป็นหลักฐานต้องมาจากเซิร์ฟเวอร์ ไม่ใช่นาฬิกาเครื่องพนักงาน
   const { data: created, error: rentalError } = await supabase
-    .from('rentals')
+    .from('crs_rentals')
     .insert({
     rental_id: rentalId,
     customer_name: input.customerName,
@@ -284,12 +284,12 @@ const createRental = async (input: RentalFormInput): Promise<string | null> => {
   }
 
   const { error: itemsError } = await supabase
-    .from('rental_items')
+    .from('crs_rental_items')
     .insert(lines.map((l) => ({ ...l, rental_id: rentalId })));
 
   if (itemsError) {
     // อย่าปล่อยใบเช่าเปล่าที่ไม่มีรายการทรัพย์สินค้างไว้
-    await supabase.from('rentals').delete().eq('rental_id', rentalId);
+    await supabase.from('crs_rentals').delete().eq('rental_id', rentalId);
     console.error(itemsError);
     showToast('บันทึกรายการทรัพย์สินไม่สำเร็จ', 'error');
     return null;
@@ -311,7 +311,7 @@ const createRental = async (input: RentalFormInput): Promise<string | null> => {
     provider: authState.provider,
   });
   const { error: snapshotError } = await supabase
-    .from('rentals')
+    .from('crs_rentals')
     .update({ contract_html: contractHtml })
     .eq('rental_id', rentalId);
   if (snapshotError) {
@@ -332,7 +332,7 @@ const cancelRental = async (rentalId: string): Promise<boolean> => {
     return false;
   }
 
-  const { error } = await supabase.from('rentals').update({ status: 'cancelled' }).eq('rental_id', rentalId);
+  const { error } = await supabase.from('crs_rentals').update({ status: 'cancelled' }).eq('rental_id', rentalId);
   if (error) {
     showToast('ยกเลิกไม่สำเร็จ', 'error');
     return false;
@@ -386,7 +386,7 @@ const uploadItemImages = async (
 
   const newImages = [...imagesOf(item, kind), ...urls];
   const { error } = await supabase
-    .from('rental_items')
+    .from('crs_rental_items')
     .update({ [imageColumn(kind)]: newImages })
     .eq('id', item.id);
 
@@ -408,7 +408,7 @@ const removeItemImage = async (item: RentalItem, kind: ImageKind, url: string): 
 
   const newImages = imagesOf(item, kind).filter((u) => u !== url);
   const { error } = await supabase
-    .from('rental_items')
+    .from('crs_rental_items')
     .update({ [imageColumn(kind)]: newImages })
     .eq('id', item.id);
 
@@ -438,7 +438,7 @@ const returnItem = async (item: RentalItem, note: string, damageAmount: number):
   const photos = imagesOf(item, 'return');
   const now = new Date().toISOString();
   const { error } = await supabase
-    .from('rental_items')
+    .from('crs_rental_items')
     .update({
       returned_at: now,
       returned_by: authState.profile?.display_name || null,
@@ -457,19 +457,19 @@ const returnItem = async (item: RentalItem, note: string, damageAmount: number):
   // สภาพล่าสุดของอุปกรณ์ = รูปตอนรับคืนครั้งหลังสุด (อัปเดตเฉพาะเมื่อมีรูปแนบมาจริง)
   if (photos.length > 0) {
     await supabase
-      .from('rental_assets')
+      .from('crs_rental_assets')
       .update({ last_condition_image: photos[photos.length - 1], last_condition_at: now })
       .eq('id', item.asset_id);
   }
 
   // คืนครบทั้งใบเมื่อไหร่ ใบเช่าถึงจะปิด
   const { data: siblings } = await supabase
-    .from('rental_items')
+    .from('crs_rental_items')
     .select('returned_at')
     .eq('rental_id', item.rental_id);
 
   if (siblings && siblings.every((s) => s.returned_at)) {
-    await supabase.from('rentals').update({ status: 'returned' }).eq('rental_id', item.rental_id);
+    await supabase.from('crs_rentals').update({ status: 'returned' }).eq('rental_id', item.rental_id);
   }
 
   await fetchRentals();

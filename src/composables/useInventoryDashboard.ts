@@ -243,8 +243,8 @@ const fetchData = async (): Promise<void> => {
 
   try {
     const [materialsRes, logsRes] = await Promise.all([
-      supabase.from('materials').select('*'),
-      supabase.from('material_logs').select('*').order('created_at', { ascending: false }).limit(5000),
+      supabase.from('crs_materials').select('*'),
+      supabase.from('crs_material_logs').select('*').order('created_at', { ascending: false }).limit(5000),
     ]);
 
     if (materialsRes.error) throw materialsRes.error;

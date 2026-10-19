@@ -70,7 +70,7 @@ const JobDetail: Component = () => {
     try {
       // Fetch Job
       const { data: jobData, error: jobError } = await supabase
-        .from('job_orders')
+        .from('crs_job_orders')
         .select('*')
         .eq('job_id', params.id)
         .single();
@@ -80,7 +80,7 @@ const JobDetail: Component = () => {
 
       // Fetch Provider
       const { data: provData, error: provError } = await supabase
-        .from('provider_info')
+        .from('crs_provider_info')
         .select('*')
         .single();
       

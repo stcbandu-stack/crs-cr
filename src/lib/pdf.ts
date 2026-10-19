@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 // Generate printable HTML and open print dialog (uses system fonts like Tahoma)
 export const generateJobPdf = async (job: JobOrder) => {
     // 1. Fetch Provider Info
-    const { data: provider } = await supabase.from('provider_info').select('*').single();
+    const { data: provider } = await supabase.from('crs_provider_info').select('*').single();
     
     const prov: ProviderInfo = provider || {
         id: 'default',

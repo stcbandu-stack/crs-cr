@@ -220,7 +220,7 @@ const generateJobId = async (): Promise<string> => {
   const prefix = generateJobIdPrefix();
 
   const { data } = await supabase
-    .from('job_orders')
+    .from('crs_job_orders')
     .select('job_id')
     .ilike('job_id', `${prefix}%`)
     .order('job_id', { ascending: false })
@@ -280,7 +280,7 @@ const submitOrder = async (): Promise<boolean> => {
         status: 'waiting_approval' as JobStatus,
       };
 
-      const { error } = await supabase.from('job_orders').insert(payload);
+      const { error } = await supabase.from('crs_job_orders').insert(payload);
 
       if (error) {
         showToast(error.message, 'error');
@@ -305,7 +305,7 @@ const closePreview = (): void => {
 // ============ History Actions ============
 
 const fetchHistory = async (): Promise<void> => {
-  const { data } = await supabase.from('job_orders').select('*').order('created_at', { ascending: false });
+  const { data } = await supabase.from('crs_job_orders').select('*').order('created_at', { ascending: false });
 
   setState('jobHistory', data || []);
 };
@@ -336,7 +336,7 @@ const printJob = (job: JobOrder): void => {
 const updateJobStatus = async (jobId: string, newStatus: JobStatus): Promise<boolean> => {
   return new Promise((resolve) => {
     openConfirm(`ยืนยันเปลี่ยนสถานะเป็น "${STATUS_OPTIONS[newStatus].label}"?`, async () => {
-      const { error } = await supabase.from('job_orders').update({ status: newStatus }).eq('job_id', jobId);
+      const { error } = await supabase.from('crs_job_orders').update({ status: newStatus }).eq('job_id', jobId);
 
       if (error) {
         showToast(error.message, 'error');
@@ -358,7 +358,7 @@ const updateJobDriveUrl = async (jobId: string, driveUrl: string): Promise<boole
   const trimmed = driveUrl.trim();
 
   const { error } = await supabase
-    .from('job_orders')
+    .from('crs_job_orders')
     .update({ drive_url: trimmed || null })
     .eq('job_id', jobId);
 
@@ -376,7 +376,7 @@ const toggleJobPrinted = async (job: JobOrder): Promise<boolean> => {
   const printedAt = job.printed_at ? null : new Date().toISOString();
 
   const { error } = await supabase
-    .from('job_orders')
+    .from('crs_job_orders')
     .update({ printed_at: printedAt })
     .eq('job_id', job.job_id);
 
@@ -392,7 +392,7 @@ const toggleJobPrinted = async (job: JobOrder): Promise<boolean> => {
 
 // ============ Job Images ============
 
-const JOB_IMAGE_BUCKET = 'job-images';
+const JOB_IMAGE_BUCKET = 'crs-job-images';
 
 const uploadJobImages = async (job: JobOrder, files: File[]): Promise<string[] | null> => {
   const urls: string[] = [];
@@ -421,7 +421,7 @@ const uploadJobImages = async (job: JobOrder, files: File[]): Promise<string[] |
 
   const newImages = [...(job.images || []), ...urls];
   const { error } = await supabase
-    .from('job_orders')
+    .from('crs_job_orders')
     .update({ images: newImages })
     .eq('job_id', job.job_id);
 
@@ -439,7 +439,7 @@ const removeJobImage = async (job: JobOrder, url: string): Promise<string[] | nu
   const newImages = (job.images || []).filter((u) => u !== url);
 
   const { error } = await supabase
-    .from('job_orders')
+    .from('crs_job_orders')
     .update({ images: newImages })
     .eq('job_id', job.job_id);
 
@@ -504,7 +504,7 @@ const updateJob = async (): Promise<boolean> => {
       };
 
       const { error } = await supabase
-        .from('job_orders')
+        .from('crs_job_orders')
         .update(payload)
         .eq('job_id', state.generatedJobId);
 

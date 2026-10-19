@@ -21,8 +21,8 @@ const fetchSessions = async (): Promise<void> => {
   setLoading(true);
 
   const [profilesRes, sessionsRes] = await Promise.all([
-    supabase.from('profiles').select('id, display_name, email, role').order('display_name'),
-    supabase.from('user_sessions').select('id, user_id, device_name, last_active'),
+    supabase.from('crs_profiles').select('id, display_name, email, role').order('display_name'),
+    supabase.from('crs_user_sessions').select('id, user_id, device_name, last_active'),
   ]);
 
   if (profilesRes.error || sessionsRes.error) {
