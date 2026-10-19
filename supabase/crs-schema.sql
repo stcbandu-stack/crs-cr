@@ -446,3 +446,68 @@ create trigger crs_line_notify_new_claim
 -- pg_cron runs in UTC: 01:00 UTC = 08:00 Bangkok daily; 03:00 UTC Fri = 10:00 Bangkok.
 select cron.schedule('crs-line-overdue-jobs-daily', '0 1 * * *', 'select crs_private.notify_overdue_jobs()');
 select cron.schedule('crs-line-stock-summary-friday', '0 3 * * 5', 'select crs_private.notify_stock_summary()');
+
+-- ============================================================================
+-- 3. Job photo retention — job photos are kept 6 months, then deleted
+-- ============================================================================
+-- Rental photos (crs-rental-images) are contract evidence and are kept.
+-- Storage files can only be deleted through the Storage API, so the daily cron
+-- calls the crs-purge-job-images edge function, which takes the expired names
+-- from crs_take_expired_job_images() and removes the files.
+
+-- Strips expired photo links from crs_job_orders.images and returns the expired
+-- object names (linked or orphaned). Upload time comes from the ms timestamp in
+-- the file name (<job_id>/<ms>_<rand>.<ext>): storage created_at was reset when
+-- the files were copied over from the old project.
+create function public.crs_take_expired_job_images() returns setof text
+language sql security definer set search_path = ''
+as $$
+  with expired as (
+    select o.name
+    from storage.objects o
+    where o.bucket_id = 'crs-job-images'
+      and coalesce(
+            to_timestamp((substring(o.name from '/(\d{13})_'))::bigint / 1000.0),
+            o.created_at
+          ) < now() - interval '6 months'
+  ),
+  stripped as (
+    update public.crs_job_orders j
+    set images = coalesce((
+      select jsonb_agg(u)
+      from jsonb_array_elements_text(j.images) u
+      where not exists (select 1 from expired e where e.name = substring(u from '/crs-job-images/(.*)$'))
+    ), '[]'::jsonb)
+    where exists (
+      select 1 from jsonb_array_elements_text(j.images) u
+      join expired e on e.name = substring(u from '/crs-job-images/(.*)$')
+    )
+    returning 1
+  )
+  select name from expired
+$$;
+revoke execute on function public.crs_take_expired_job_images() from public, anon, authenticated;
+grant execute on function public.crs_take_expired_job_images() to service_role;
+
+create function crs_private.purge_job_images() returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  secret text;
+begin
+  select decrypted_secret into secret
+  from vault.decrypted_secrets
+  where name = 'crs_line_notify_secret';
+
+  perform net.http_post(
+    url := 'https://ibghmzymkvksqqdwhnyo.supabase.co/functions/v1/crs-purge-job-images',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-notify-secret', secret),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 120000
+  );
+end;
+$$;
+revoke execute on function crs_private.purge_job_images() from public, anon, authenticated;
+
+-- 20:00 UTC = 03:00 Bangkok, when nobody is working.
+select cron.schedule('crs-purge-job-images-daily', '0 20 * * *', 'select crs_private.purge_job_images()');
